@@ -1,0 +1,156 @@
+from __future__ import annotations
+
+from datetime import time
+
+from .io import parse_bool, parse_datetime, parse_int
+from .normalize import lower_text, tokenize
+from .schemas import BehaviorFeatures, EvidenceCandidate
+
+
+URGENT_WORDS = {
+    "urgent",
+    "asap",
+    "immediately",
+    "today",
+    "now",
+    "deadline",
+    "eod",
+    "leaving",
+    "expire",
+    "expires",
+    "blocked",
+    "wait",
+    "needed",
+    "need",
+    "emergency",
+    "minutes",
+}
+PROMO_WORDS = {"sale", "discount", "offer", "coupon", "deal", "flat", "cashback", "limited", "promo"}
+
+
+def _bounded(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _parse_window(window: str) -> tuple[time, time] | None:
+    try:
+        start_s, end_s = window.split("-", 1)
+        sh, sm = [int(x) for x in start_s.split(":", 1)]
+        eh, em = [int(x) for x in end_s.split(":", 1)]
+        return time(sh, sm), time(eh, em)
+    except Exception:
+        return None
+
+
+def in_quiet_hours(created_at: str, window: str) -> bool:
+    dt = parse_datetime(created_at)
+    parsed = _parse_window(window)
+    if dt is None or parsed is None:
+        return False
+    current = dt.time()
+    start, end = parsed
+    if start <= end:
+        return start <= current < end
+    return current >= start or current < end
+
+
+def detect_direct_mention(row: dict[str, str]) -> bool:
+    text = lower_text(row.get("message_text", ""))
+    user_id = row.get("user_id", "").casefold()
+    if user_id and f"@{user_id}" in text:
+        return True
+    if row.get("conversation_type") == "personal":
+        return True
+    return any(phrase in text for phrase in ("can you", "need you", "your child", "your flat", "your account", "please reply", "pls reply", "reply once"))
+
+
+def urgency_score(row: dict[str, str]) -> float:
+    tokens = set(tokenize(row.get("message_text", "")))
+    score = 0.0
+    score += min(0.5, 0.1 * len(tokens & URGENT_WORDS))
+    if detect_direct_mention(row):
+        score += 0.25
+    if any(x in lower_text(row.get("message_text", "")) for x in ("15 mins", "20 mins", "before eod", "by 7", "expire today", "expires today")):
+        score += 0.25
+    return _bounded(score)
+
+
+def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], media_error: str = "") -> BehaviorFeatures:
+    user = idx.users.get(row.get("user_id", ""), {})
+    group = idx.groups.get(row.get("group_id", ""), {})
+    membership = idx.memberships.get((row.get("group_id", ""), row.get("user_id", "")), {})
+    business = idx.business_accounts.get(row.get("business_id", ""), {})
+    ubh = idx.user_business.get((row.get("user_id", ""), row.get("business_id", "")), {})
+    missing: list[str] = []
+    for label, condition in [
+        ("user", not user),
+        ("group", row.get("group_id") and not group),
+        ("membership", row.get("group_id") and not membership),
+        ("business", row.get("business_id") and not business),
+        ("user_business_history", row.get("business_id") and not ubh),
+    ]:
+        if condition:
+            missing.append(label)
+
+    opened = parse_int(user.get("messages_opened_30d"))
+    replied = parse_int(user.get("messages_replied_30d"))
+    dismissed = parse_int(user.get("notifications_dismissed_30d"))
+    reported = parse_int(user.get("messages_reported_30d"))
+    user_affinity = (opened + 2 * replied) / max(1, opened + replied + dismissed + reported)
+
+    trust = 0.2
+    if row.get("conversation_type") == "personal":
+        trust += 0.35
+    if membership.get("role") == "admin":
+        trust += 0.2
+    if group.get("group_type") in {"family", "school_group", "work", "society"}:
+        trust += 0.12
+    if business:
+        trust += 0.28 if business.get("verified") == "1" else -0.1
+        trust -= min(0.3, parse_int(business.get("user_reports_30d")) / 50)
+    if ubh:
+        trust += min(0.25, parse_int(ubh.get("activity_count_180d")) / 40)
+
+    ubh_open = parse_int(ubh.get("messages_opened_30d"))
+    ubh_reply = parse_int(ubh.get("messages_replied_30d"))
+    ubh_dismiss = parse_int(ubh.get("messages_dismissed_30d"))
+    group_read = parse_int(membership.get("messages_read_30d"))
+    group_reply = parse_int(membership.get("replies_sent_30d"))
+    group_dismiss = parse_int(membership.get("notifications_dismissed_30d"))
+    affinity = _bounded(0.2 + user_affinity * 0.3 + (ubh_open + 2 * ubh_reply + group_read + 2 * group_reply) / max(1, 20 + ubh_dismiss + group_dismiss))
+
+    promotion_opt_out = bool(ubh and (ubh.get("allows_promotions") == "0" or bool(ubh.get("promotions_opted_out_at"))))
+    fatigue = _bounded((dismissed / max(1, opened + dismissed + 10)) + (ubh_dismiss / 12) + (group_dismiss / 18) + (0.35 if promotion_opt_out and _looks_promotional(row) else 0))
+
+    daily = idx.daily_by_user.get(row.get("user_id", ""), [])
+    if daily:
+        avg_sent = sum(parse_int(r.get("notifications_sent")) for r in daily) / len(daily)
+        avg_dismissed = sum(parse_int(r.get("notifications_dismissed")) for r in daily) / len(daily)
+        relative_load = _bounded((avg_sent / 10) * 0.7 + (avg_dismissed / max(1, avg_sent)) * 0.3)
+    else:
+        relative_load = 0.0
+        missing.append("daily_notification_summary")
+
+    return BehaviorFeatures(
+        trust=_bounded(trust),
+        affinity=affinity,
+        fatigue=fatigue,
+        promotion_opt_out=promotion_opt_out,
+        relationship_strength=_bounded((trust + affinity) / 2),
+        group_muted=parse_bool(membership.get("group_muted_by_user")),
+        group_role=membership.get("role", ""),
+        sender_is_admin_context=membership.get("role") == "admin" or "admin" in lower_text(row.get("message_text", "")),
+        in_quiet_hours=in_quiet_hours(row.get("created_at", ""), user.get("do_not_disturb_window", "")),
+        relative_load=relative_load,
+        urgency=urgency_score(row),
+        direct_mention=detect_direct_mention(row),
+        repeated=bool(evidence and evidence[0].score >= 0.45),
+        missing_context=tuple(missing),
+        media_available=bool(row.get("media_type") and not media_error),
+        media_error=media_error,
+    )
+
+
+def _looks_promotional(row: dict[str, str]) -> bool:
+    tokens = set(tokenize(row.get("message_text", "")))
+    return bool(tokens & PROMO_WORDS) or row.get("conversation_type") == "business"
