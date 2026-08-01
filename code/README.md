@@ -1,22 +1,24 @@
-# ShieldRouter Offline Baseline
+# ShieldRouter
 
-ShieldRouter is a deterministic Python CLI for HackerRank Orchestrate August 2026 Message Notification Router. It reads the official participant CSVs from `dataset/`, builds local context indexes, applies non-overridable safety rules, computes BehaviorGraph-style personalization features, retrieves same-user historical evidence, resolves a final action with code-only precedence, and writes the exact required `output.csv`.
+ShieldRouter is a deterministic Python CLI for the HackerRank Orchestrate August 2026 Message Notification Router. It reads the official participant CSVs from `dataset/`, builds local personalization and safety context, inspects local voice and image media in zero-network modes, and writes the required six-column `output.csv`.
+
+The current selected candidate is `code/evaluation/baselines/local_multimodal_tuned.csv`, promoted to root `output.csv` after validation. The previous local-voice root output is preserved at `code/evaluation/baselines/pre_local_multimodal_output.csv`.
 
 ## Architecture
 
 1. `io.py` validates exact CSV headers, IDs, timestamps, booleans, and media path containment.
 2. `indexes.py` builds users, groups, memberships, businesses, business history, message history, events, daily load, image, and voice-note indexes.
 3. `normalize.py` normalizes whitespace/Unicode and extracts URLs/domains while treating message content as untrusted data.
-4. `safety_rules.py` detects OTP/PIN/password/login-code requests, payment/QR pressure, suspicious domains, account-pressure language, prompt injection, and forwarding chains.
-5. `behaviorgraph.py` calculates trust, affinity, fatigue, opt-out, group mute, quiet-hours, recent load, urgency, direct mention, repetition, missing context, and media availability.
-6. `retrieval.py` performs deterministic same-user TF-IDF-style token retrieval and metadata reranking, returning at most five valid historical IDs.
-7. `fallback_synthesis.py` derives urgency, direct mention, message type, preliminary action, ambiguity, and grounded facts without an external model.
-8. `resolver.py` enforces final precedence. The resolver, not a model, owns the submitted action.
-9. `confidence.py`, `reason.py`, and `validate.py` calibrate score, explain decisions, and enforce the six-column output contract.
+4. `safety_rules.py` detects OTP/PIN/password/login-code requests, wallet/card-detail pressure, payment/QR pressure, suspicious domains, account-pressure language, prompt injection, and forwarding chains.
+5. `local_image.py` lazily decodes actual image bytes, validates type/size/path safety, runs RapidOCR through ONNXRuntime, detects QR codes with OpenCV, extracts structured `LocalImageFacts`, and caches by media SHA-256 plus OCR/schema/preprocessing versions.
+6. `provider.py` provides optional OpenRouter advisory support, local Faster-Whisper transcription, and the zero-network `LocalMultimodalProvider`.
+7. `behaviorgraph.py`, `retrieval.py`, `fallback_synthesis.py`, `resolver.py`, `confidence.py`, and `reason.py` compute context, evidence, deterministic synthesis, final action, confidence, and grounded reasons.
+
+The resolver owns the final `notify`, `digest`, or `mute` action. OCR, Whisper, and optional provider outputs are facts only.
 
 ## Setup
 
-From the repository root:
+Use Python 3.12. From the repository root:
 
 ```powershell
 python -m venv .venv
@@ -24,32 +26,66 @@ python -m venv .venv
 python -m pip install -r code\requirements.txt
 ```
 
-If `python` is not on PATH, use any Python 3.12-compatible interpreter. The offline router itself uses only the Python standard library; `pytest` is required for the test suite.
+Local image processing requires `rapidocr`, `onnxruntime`, `opencv-python-headless`, and `Pillow`. Local voice transcription requires `faster-whisper` and an already available local model cache.
+
+For the selected zero-network mode, `LOCAL_WHISPER_LOCAL_FILES_ONLY=1` is enforced and model fallback is disabled. If the Faster-Whisper model is not already available locally, the first selected-mode run reports an explicit media failure instead of downloading during routing. Model download or cache warmup must be handled before a zero-network reproduction run.
 
 ## Commands
 
+Validate inputs:
+
 ```powershell
 python code/main.py validate-input --dataset dataset
-python code/main.py run --dataset dataset --output output.csv --offline
-python code/main.py run --dataset dataset --output code/evaluation/baselines/local_voice_tuned.csv --local-voice --cache-dir code/.shieldrouter_cache
-python code/main.py validate-output --dataset dataset --output output.csv
-python code/main.py trace --dataset dataset --message-id msg_023 --offline
-python code/main.py evaluate-sample --dataset dataset --report code/evaluation/sample_eval_tuned.json --errors code/evaluation/sample_error_analysis.csv
-python -m pytest code/tests -q
 ```
 
-Optional hybrid smoke tests require `AI_PROVIDER=openrouter` and `OPENROUTER_API_KEY`. The API key is read from the environment or `.env`; it is never printed. OpenRouter calls use the OpenAI-compatible `https://openrouter.ai/api/v1` endpoint, strict structured JSON schema output where supported, provider parameter enforcement, `provider.data_collection=deny`, a default 35-request run cap, one retry for HTTP 429/5xx, and no retry for HTTP 400/401/402/403/404.
+Offline text/context mode:
+
+```powershell
+python code/main.py run --dataset dataset --output code/evaluation/baselines/offline_tuned.csv --offline
+```
+
+Local voice mode:
+
+```powershell
+python code/main.py run --dataset dataset --output code/evaluation/baselines/local_voice_tuned.csv --local-voice --cache-dir code/.shieldrouter_cache
+```
+
+Local multimodal mode, selected candidate:
+
+```powershell
+python code/main.py run --dataset dataset --output code/evaluation/baselines/local_multimodal_tuned.csv --local-multimodal --cache-dir code/.shieldrouter_cache
+python code/main.py validate-output --dataset dataset --output code/evaluation/baselines/local_multimodal_tuned.csv
+```
+
+Zero-network reproduction:
+
+```powershell
+python code/main.py run --dataset dataset --output .tmp/local_multimodal_rerun.csv --local-multimodal --cache-dir code/.shieldrouter_cache
+```
+
+The rerun should be byte-identical to `code/evaluation/baselines/local_multimodal_tuned.csv` when inputs and code are unchanged.
+
+Optional OpenRouter hybrid mode:
 
 ```powershell
 python code/main.py smoke-online --dataset dataset --cache-dir code/.shieldrouter_cache
 python code/main.py run --dataset dataset --output code/evaluation/baselines/hybrid_openrouter.csv --online --cache-dir code/.shieldrouter_cache
 ```
 
-The online path preserves deterministic offline fallback. Do not run the full dataset online until the smoke test confirms one text request, one real image request, one local voice transcription, structured validation, actual returned model reporting, and cache reruns with zero new OpenRouter requests.
+OpenRouter mode requires `AI_PROVIDER=openrouter` and `OPENROUTER_API_KEY`. It uses a strict 35-request cap and deterministic fallback. Do not use it for zero-network reproduction.
 
-## Input/Output Contract
+Evaluation and tests:
 
-Input predictions are generated only for rows in `dataset/messages.csv`. The output columns are exactly:
+```powershell
+python code/main.py evaluate-sample --dataset dataset --local-multimodal --cache-dir code/.shieldrouter_cache --report code/evaluation/sample_eval_local_multimodal.json --errors code/evaluation/sample_error_analysis_local_multimodal.csv
+python -m pytest code/tests -q -p no:cacheprovider --basetemp=.tmp/pytest
+```
+
+Current test count: 76 passing.
+
+## Output Contract
+
+Predictions are generated only for rows in `dataset/messages.csv`. The output columns are exactly:
 
 ```text
 message_id,action,message_type,reason,confidence,evidence_message_ids
@@ -59,46 +95,26 @@ Allowed actions are `notify`, `digest`, and `mute`. Allowed message types are `p
 
 `evidence_message_ids` contains semicolon-separated IDs from `dataset/message_history.csv` for the same receiving user, or `none`.
 
-## Decision Precedence
+## Validated State
 
-1. High-confidence scam, credential theft, or integrity risk -> `mute`.
-2. Legitimate trusted time-critical direct mention -> `notify`, including muted group or quiet-hours exceptions.
-3. Explicit promotion opt-out, severe fatigue, or repeated dismissal -> `mute`.
-4. Useful urgency during quiet hours or high notification load -> `digest`.
-5. Safe and useful non-urgent content -> `digest`.
-6. Ambiguous content -> `digest`.
+- 110 input rows and 110 valid output rows.
+- Local multimodal attempts all 15 image messages and succeeds on all 15.
+- RapidOCR is lazy-loaded only for image rows and uses local ONNX model files.
+- OpenCV QR detection runs locally; no QR destinations are opened.
+- Local Faster-Whisper processes all 8 voice notes from cache in the validated run.
+- Provider request count is exactly zero in `--local-voice` and `--local-multimodal`.
+- Local multimodal deterministic rerun SHA-256: `A819A2AF4F32687419F342E18D5320C0C3EBB41A2F4385430D153E5842E4686D`.
+- The final code package is expected to contain code and documentation; the evaluation dataset is provided externally by the challenge environment.
 
-## Offline Capabilities
+## Reports
 
-The current baseline is fully offline and deterministic. It handles text, image references, and voice-note references as local attachments, validates referenced media paths, and marks per-row media issues conservatively without dropping rows. It does not perform OCR or transcription yet.
+- `code/evaluation/local_image_comparison.csv` audits all 15 image messages, OCR confidence, weak OCR, QR presence, extracted dates/prices/domains, safety signals, confidence before/after, and changed decisions.
+- `code/evaluation/sample_eval_local_multimodal.json` contains labeled sample metrics for the selected candidate.
+- Baseline artifacts are stored under `code/evaluation/baselines/`.
 
-## Optional Hybrid Capabilities
+## Known Limitations
 
-The code includes a provider abstraction for external structured AI. The OpenRouter provider sends advisory semantic-enrichment requests only for selected messages: all image rows, at most 12 prioritized ambiguous/risky text rows, and ambiguous voice transcripts when budget remains. The model returns facts only; deterministic ShieldRouter safety, synthesis, resolver, confidence, evidence, and output validation still own the final `notify`, `digest`, or `mute` decision.
-
-Voice notes are transcribed locally with `faster-whisper` using:
-
-```text
-LOCAL_WHISPER_MODEL=small
-LOCAL_WHISPER_DEVICE=cpu
-LOCAL_WHISPER_COMPUTE_TYPE=int8
-```
-
-The Whisper model lazy-loads only when a voice note is encountered, caches transcripts by audio SHA-256 and transcription options, preserves the original spoken language, and returns an explicit failure signal without dropping the output row. No OpenRouter transcription model is used.
-
-For zero-network ablations, use `--local-voice` instead of `--online`. This mode does not construct the OpenRouter provider, does not read `OPENROUTER_API_KEY`, sets Whisper loading to local files only, forbids model fallback for that run, and asserts provider request counters stay at zero.
-
-## Limitations
-
-- Image content is not actually inspected unless the optional OpenRouter smoke test succeeds.
-- Voice notes require `faster-whisper` and an available local model download/cache; failures lower confidence but preserve rows.
-- The current validated submission candidate is the tuned offline output because the available API key failed authentication during smoke testing.
-- Confidence is calibrated from internal agreement signals, not learned probabilities.
-
-## Next Phases
-
-- Add restricted model safety assessment that receives only message/media/minimal sender data.
-- Add actual image inspection with OCR/vision and cache outputs by media hash.
-- Add voice-note transcription and urgency/tone extraction.
-- Add structured contextual synthesis that receives safety read-only plus BehaviorGraph and evidence facts.
-- Add adversarial evaluation, ablations, and final packaging checks.
+- OCR quality is weak or empty on some low-text photos/posters; those rows are explicitly marked low-information and still routed with message text and history.
+- Scene understanding is limited to locally extracted OCR/QR/metadata facts. The local pipeline does not invent captions.
+- Faster-Whisper requires local model files; failures are explicit, lower confidence, and preserve rows.
+- OpenRouter hybrid remains optional and is not part of the selected zero-network candidate.
