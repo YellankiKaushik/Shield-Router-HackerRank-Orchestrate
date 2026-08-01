@@ -11,6 +11,32 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class LocalImageFacts(StrictModel):
+    valid_media: bool = False
+    visible_text: str = ""
+    ocr_lines: list[str] = Field(default_factory=list)
+    mean_ocr_confidence: float = 0.0
+    image_width: int = 0
+    image_height: int = 0
+    mime_type: str = ""
+    contains_qr: bool = False
+    decoded_qr_text: str = ""
+    detected_urls: list[str] = Field(default_factory=list)
+    detected_domains: list[str] = Field(default_factory=list)
+    detected_phone_numbers: list[str] = Field(default_factory=list)
+    detected_prices: list[str] = Field(default_factory=list)
+    detected_dates: list[str] = Field(default_factory=list)
+    deadline_language: bool = False
+    payment_language: bool = False
+    credential_request_language: bool = False
+    urgent_language: bool = False
+    promotion_language: bool = False
+    prompt_injection_language: bool = False
+    suspicious_visual_signals: list[str] = Field(default_factory=list)
+    layout_type: Literal["text_poster", "screenshot", "document", "low_text_image", "unknown"] = "unknown"
+    extraction_error: str = ""
+
+
 class MediaFacts(StrictModel):
     media_type: Literal["none", "image", "voice"] = "none"
     status: Literal["not_applicable", "ok", "failed"] = "not_applicable"
@@ -21,11 +47,22 @@ class MediaFacts(StrictModel):
     price_or_payment_information: list[str] = Field(default_factory=list)
     dates_and_deadlines: list[str] = Field(default_factory=list)
     suspicious_visual_signals: list[str] = Field(default_factory=list)
+    local_image_facts: LocalImageFacts | None = None
     error: str = ""
     cache_hit: bool = False
 
     def combined_text(self) -> str:
-        parts = [self.visible_text, self.transcript, " ".join(self.scene_or_poster_facts), " ".join(self.dates_and_deadlines)]
+        qr_text = ""
+        if self.local_image_facts is not None:
+            qr_text = self.local_image_facts.decoded_qr_text
+        parts = [
+            self.visible_text,
+            self.transcript,
+            qr_text,
+            " ".join(self.scene_or_poster_facts),
+            " ".join(self.dates_and_deadlines),
+            " ".join(self.price_or_payment_information),
+        ]
         return " ".join(p for p in parts if p).strip()
 
 
