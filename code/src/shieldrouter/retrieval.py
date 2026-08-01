@@ -11,6 +11,13 @@ def _tf(tokens: list[str]) -> Counter[str]:
     return Counter(tokens)
 
 
+def _idf_for_docs(docs: list[list[str]]) -> dict[str, float]:
+    df: Counter[str] = Counter()
+    for tokens in docs:
+        df.update(set(tokens))
+    return {t: math.log((1 + len(docs)) / (1 + n)) + 1 for t, n in df.items()}
+
+
 def _cosine(a: Counter[str], b: Counter[str], idf: dict[str, float]) -> float:
     if not a or not b:
         return 0.0
@@ -21,15 +28,24 @@ def _cosine(a: Counter[str], b: Counter[str], idf: dict[str, float]) -> float:
     return 0.0 if da == 0 or db == 0 else num / (da * db)
 
 
+def highest_user_history_similarity(row: dict[str, str], idx) -> float:
+    history = idx.history_by_user.get(row.get("user_id", ""), [])
+    query_tokens = tokenize(row.get("message_text", ""))
+    if not history or not query_tokens:
+        return 0.0
+    docs = [tokenize(r.get("message_text", "")) for r in history]
+    idf = _idf_for_docs(docs)
+    query = _tf(query_tokens)
+    highest = max((_cosine(query, _tf(tokens), idf) for tokens in docs), default=0.0)
+    return round(max(0.0, min(1.0, highest)), 4)
+
+
 def retrieve_evidence(row: dict[str, str], idx, limit: int = 5, threshold: float = 0.08) -> list[EvidenceCandidate]:
     history = idx.history_by_user.get(row.get("user_id", ""), [])
     if not history:
         return []
     docs = [tokenize(r.get("message_text", "")) for r in history]
-    df: Counter[str] = Counter()
-    for tokens in docs:
-        df.update(set(tokens))
-    idf = {t: math.log((1 + len(docs)) / (1 + n)) + 1 for t, n in df.items()}
+    idf = _idf_for_docs(docs)
     query_tokens = tokenize(row.get("message_text", ""))
     query = _tf(query_tokens)
     scored: list[EvidenceCandidate] = []

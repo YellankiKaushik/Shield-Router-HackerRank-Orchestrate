@@ -168,6 +168,11 @@ class BehaviorFeatures:
     trust: float = 0.0
     affinity: float = 0.0
     fatigue: float = 0.0
+    novelty: float = 0.5
+    highest_history_similarity: float = 0.0
+    transaction_relationship: bool = False
+    transaction_strength: float = 0.0
+    forwarding_fatigue: float = 0.0
     promotion_opt_out: bool = False
     relationship_strength: float = 0.0
     group_muted: bool = False
@@ -213,6 +218,7 @@ class DecisionTrace:
     synthesis: Synthesis
     errors: list[str] = field(default_factory=list)
     media_facts: Any | None = None
+    exception_check: Any | None = None
 
     def to_output_row(self) -> dict[str, Any]:
         evidence = ";".join(self.evidence_message_ids) if self.evidence_message_ids else "none"

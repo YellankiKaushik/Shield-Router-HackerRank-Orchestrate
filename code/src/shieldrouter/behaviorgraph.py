@@ -4,6 +4,7 @@ from datetime import time
 
 from .io import parse_bool, parse_datetime, parse_int
 from .normalize import lower_text, tokenize
+from .retrieval import highest_user_history_similarity
 from .schemas import BehaviorFeatures, EvidenceCandidate
 
 
@@ -114,6 +115,69 @@ def urgency_score(row: dict[str, str]) -> float:
     return _bounded(score)
 
 
+def novelty_score(row: dict[str, str], idx) -> tuple[float, float]:
+    if not tokenize(row.get("message_text", "")):
+        return 0.5, 0.0
+    history = idx.history_by_user.get(row.get("user_id", ""), [])
+    if not history:
+        return 0.5, 0.0
+    highest = highest_user_history_similarity(row, idx)
+    return _bounded(1.0 - highest), highest
+
+
+def transaction_strength(row: dict[str, str], ubh: dict[str, str]) -> tuple[bool, float]:
+    if row.get("conversation_type") != "business" or not row.get("business_id") or not ubh:
+        return False, 0.0
+    known = lower_text(ubh.get("why_user_knows_account", ""))
+    transaction_terms = {
+        "order",
+        "delivery",
+        "booking",
+        "payment",
+        "bill",
+        "wallet",
+        "account",
+        "appointment",
+        "clinic",
+        "pickup",
+        "maintenance",
+        "card",
+        "utility",
+        "travel",
+    }
+    matched_terms = sum(1 for term in transaction_terms if term in known)
+    activity = parse_int(ubh.get("activity_count_180d"))
+    opened = parse_int(ubh.get("messages_opened_30d"))
+    replied = parse_int(ubh.get("messages_replied_30d"))
+    dismissed = parse_int(ubh.get("messages_dismissed_30d"))
+    score = 0.0
+    if matched_terms:
+        score += min(0.45, 0.18 * matched_terms)
+    if any(term in known for term in ("recent", "active", "confirmed", "upcoming", "expected", "monthly", "frequent")):
+        score += 0.18
+    if ubh.get("last_activity_at"):
+        score += 0.08
+    if ubh.get("last_reply_at"):
+        score += 0.08
+    score += min(0.18, activity * 0.03)
+    score += min(0.12, (opened + 2 * replied) * 0.015)
+    score -= min(0.12, dismissed * 0.02)
+    score = _bounded(score)
+    return score >= 0.35, score
+
+
+def forwarding_fatigue_contribution(row: dict[str, str], has_negative_context: bool = False) -> float:
+    count = max(0, parse_int(row.get("forwarded_count")))
+    if count == 0:
+        return 0.0
+    raw = min(0.30, count * 0.06)
+    if count == 1:
+        return round(raw, 4)
+    if has_negative_context or count >= 5:
+        return round(raw, 4)
+    return round(min(raw, 0.12), 4)
+
+
 def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], media_error: str = "") -> BehaviorFeatures:
     user = idx.users.get(row.get("user_id", ""), {})
     group = idx.groups.get(row.get("group_id", ""), {})
@@ -154,6 +218,9 @@ def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], 
         trust -= min(0.3, parse_int(business.get("user_reports_30d")) / 50)
     if ubh:
         trust += min(0.25, parse_int(ubh.get("activity_count_180d")) / 40)
+    transaction_relationship, transaction_value = transaction_strength(row, ubh)
+    if transaction_relationship:
+        trust += min(0.12, transaction_value * 0.12)
 
     ubh_open = parse_int(ubh.get("messages_opened_30d"))
     ubh_reply = parse_int(ubh.get("messages_replied_30d"))
@@ -172,14 +239,26 @@ def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], 
             evidence_dismissed += 1
         if event.get("message_opened") == "1" or event.get("message_replied") == "1":
             evidence_engaged += 1
+    looks_promotional = _looks_promotional(row)
+    forwarding_fatigue = forwarding_fatigue_contribution(
+        row,
+        has_negative_context=bool(
+            evidence_dismissed
+            or group_dismiss
+            or promotion_opt_out
+            or looks_promotional
+            or parse_int(row.get("forwarded_count")) >= 5
+        ),
+    )
     fatigue = _bounded(
         (dismissed / max(1, opened + dismissed + 10))
         + (ubh_dismiss / 12)
         + (group_dismiss / 18)
-        + (0.35 if promotion_opt_out and _looks_promotional(row) else 0)
-        + (0.28 if evidence_dismissed and _looks_promotional(row) else 0)
+        + (0.35 if promotion_opt_out and looks_promotional else 0)
+        + (0.28 if evidence_dismissed and looks_promotional else 0)
         + (0.18 if evidence_dismissed >= 2 and parse_int(row.get("forwarded_count")) >= 3 else 0)
-        - (0.08 if evidence_engaged and not _looks_promotional(row) else 0)
+        + forwarding_fatigue
+        - (0.08 if evidence_engaged and not looks_promotional else 0)
     )
 
     daily = idx.daily_by_user.get(row.get("user_id", ""), [])
@@ -190,11 +269,23 @@ def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], 
     else:
         relative_load = 0.0
         missing.append("daily_notification_summary")
+    novelty, highest_similarity = novelty_score(row, idx)
+    urgency = urgency_score(row)
+    if transaction_relationship and any(
+        phrase in lower_text(row.get("message_text", ""))
+        for phrase in ("today", "tomorrow", "changed", "expected", "scheduled", "appointment", "pickup", "payment update", "booking", "delivery")
+    ):
+        urgency = _bounded(urgency + min(0.12, transaction_value * 0.12))
 
     return BehaviorFeatures(
         trust=_bounded(trust),
         affinity=affinity,
         fatigue=fatigue,
+        novelty=novelty,
+        highest_history_similarity=highest_similarity,
+        transaction_relationship=transaction_relationship,
+        transaction_strength=transaction_value,
+        forwarding_fatigue=forwarding_fatigue,
         promotion_opt_out=promotion_opt_out,
         relationship_strength=_bounded((trust + affinity) / 2),
         group_muted=parse_bool(membership.get("group_muted_by_user")),
@@ -202,7 +293,7 @@ def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], 
         sender_is_admin_context=membership.get("role") == "admin" or "admin" in lower_text(row.get("message_text", "")),
         in_quiet_hours=in_quiet_hours(row.get("created_at", ""), user.get("do_not_disturb_window", "")),
         relative_load=relative_load,
-        urgency=urgency_score(row),
+        urgency=urgency,
         direct_mention=detect_direct_mention(row),
         repeated=bool(evidence and evidence[0].score >= 0.45),
         missing_context=tuple(missing),
