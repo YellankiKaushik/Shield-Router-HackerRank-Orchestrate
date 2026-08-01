@@ -1,0 +1,7 @@
+# ShieldRouter offline baseline thresholds. The runtime has matching defaults in code
+# so this file remains optional and network-free.
+fatigue_mute: 0.72
+load_digest: 0.72
+evidence_threshold: 0.08
+max_evidence: 5
+forwarded_chain_threshold: 5
