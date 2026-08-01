@@ -105,6 +105,13 @@ def test_nonexistent_media_handling():
     assert facts.status == "failed"
 
 
+def test_missing_audio_preserves_failed_media_result():
+    _, idx = indexes()
+    facts = extract_media({"media_type": "voice", "media_id": "missing"}, idx, FakeProvider(), online=True)
+    assert facts.status == "failed"
+    assert "missing_voice_media" in facts.error
+
+
 def test_evidence_ids_restricted_to_supplied_candidates():
     _, idx = indexes()
     payload = build_synthesis_payload(
