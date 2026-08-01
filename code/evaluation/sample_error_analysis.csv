@@ -1,0 +1,2 @@
+message_id,expected_action,predicted_action,expected_message_type,predicted_message_type,relevant_context,responsible_rule_or_feature,generalizable_correction
+sample_msg_042,notify,digest,urgent,personal,voice attachment is available; voice-note attachment is available,safety=safe; urgency=low; fatigue=0.61,"Improve trusted urgency, direct request, media transcript, or transaction-update detection."
