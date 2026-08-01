@@ -46,6 +46,13 @@ def extract_media(
         path = _validated_index_path(path, idx)
     except Exception as exc:
         return MediaFacts(media_type=media_type, status="failed", error=f"invalid_{media_type}_path:{type(exc).__name__}")
+    if media_type == "image" and provider is not None and hasattr(provider, "extract_image"):
+        try:
+            return provider.extract_image(row, idx)
+        except (ProviderError, ValueError, TypeError) as exc:
+            if provider is not None:
+                provider.stats.fallbacks += 1
+            return MediaFacts(media_type=media_type, status="failed", error=f"{type(exc).__name__}:{str(exc)[:120]}")
     if not online or provider is None:
         return MediaFacts(media_type=media_type, status="ok")
     try:
