@@ -59,10 +59,17 @@ class ProviderStats:
     actual_models: list[str] = field(default_factory=list)
     sanitized_error_types: list[str] = field(default_factory=list)
     token_usage: list[dict[str, Any]] = field(default_factory=list)
+    transcription_attempts: int = 0
+    transcription_successes: int = 0
     transcription_cache_hits: int = 0
     transcription_failures: int = 0
     whisper_model_used: str = ""
     whisper_fallback_reason: str = ""
+    image_extraction_attempts: int = 0
+    image_extraction_successes: int = 0
+    image_extraction_failures: int = 0
+    image_extraction_cache_hits: int = 0
+    qr_codes_detected: int = 0
 
     @property
     def remaining_requests(self) -> int:
@@ -85,10 +92,17 @@ class ProviderStats:
             "latency_seconds_total": round(sum(self.latencies), 4),
             "latency_seconds_mean": round(sum(self.latencies) / len(self.latencies), 4) if self.latencies else 0.0,
             "token_usage": self.token_usage[-5:],
+            "transcription_attempts": self.transcription_attempts,
+            "transcription_successes": self.transcription_successes,
             "transcription_cache_hits": self.transcription_cache_hits,
             "transcription_failures": self.transcription_failures,
             "whisper_model_used": self.whisper_model_used,
             "whisper_fallback_reason": self.whisper_fallback_reason,
+            "image_extraction_attempts": self.image_extraction_attempts,
+            "image_extraction_successes": self.image_extraction_successes,
+            "image_extraction_failures": self.image_extraction_failures,
+            "image_extraction_cache_hits": self.image_extraction_cache_hits,
+            "qr_codes_detected": self.qr_codes_detected,
         }
 
 
@@ -211,15 +225,19 @@ class LocalWhisperTranscriber:
         return self.cache_dir / f"{digest}.json"
 
     def transcribe(self, audio_path: Path) -> str:
+        self.stats.transcription_attempts += 1
         primary = self.config.model
         cache_path = self._cache_path(audio_path, primary)
         if cache_path.exists():
             self.stats.transcription_cache_hits += 1
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
             self.stats.whisper_model_used = cached.get("model", primary)
+            self.stats.transcription_successes += 1
             return str(cached.get("text", ""))
         try:
-            return self._transcribe_with_model(audio_path, primary, cache_path)
+            transcript = self._transcribe_with_model(audio_path, primary, cache_path)
+            self.stats.transcription_successes += 1
+            return transcript
         except Exception as exc:
             if primary != "small" or not self.config.allow_model_fallback:
                 self.stats.transcription_failures += 1
@@ -230,9 +248,12 @@ class LocalWhisperTranscriber:
                 self.stats.transcription_cache_hits += 1
                 cached = json.loads(fallback_cache.read_text(encoding="utf-8"))
                 self.stats.whisper_model_used = cached.get("model", "base")
+                self.stats.transcription_successes += 1
                 return str(cached.get("text", ""))
             try:
-                return self._transcribe_with_model(audio_path, "base", fallback_cache)
+                transcript = self._transcribe_with_model(audio_path, "base", fallback_cache)
+                self.stats.transcription_successes += 1
+                return transcript
             except Exception as base_exc:
                 self.stats.transcription_failures += 1
                 raise ProviderError(f"local_whisper_failed:{type(base_exc).__name__}") from base_exc
@@ -276,6 +297,17 @@ class LocalVoiceProvider:
 
     def transcribe(self, audio_path: Path) -> str:
         return self.transcriber.transcribe(audio_path)
+
+
+class LocalMultimodalProvider(LocalVoiceProvider):
+    def __init__(self, cache_dir: Path, config: WhisperConfig | None = None) -> None:
+        super().__init__(cache_dir, config=config)
+        from .local_image import LocalImageExtractor
+
+        self.image_extractor = LocalImageExtractor(cache_dir, stats=self.stats)
+
+    def extract_image(self, row: dict[str, str], idx) -> Any:
+        return self.image_extractor.extract(row, idx)
 
 
 class OpenRouterProvider:
