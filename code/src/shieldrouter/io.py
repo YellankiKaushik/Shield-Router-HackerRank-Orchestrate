@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from .schemas import CONVERSATION_TYPES, DATASET_HEADERS, MEDIA_TYPES
+from .schemas import CONVERSATION_TYPES, DATASET_HEADERS, MEDIA_TYPES, ROUTING_TABLES
 
 
 class DatasetError(ValueError):
@@ -33,10 +33,10 @@ def write_csv(path: Path, rows: Iterable[dict[str, object]], columns: list[str])
             writer.writerow({c: row.get(c, "") for c in columns})
 
 
-def load_dataset(dataset_dir: Path) -> dict[str, list[dict[str, str]]]:
+def load_dataset(dataset_dir: Path, filenames: Iterable[str] | None = None) -> dict[str, list[dict[str, str]]]:
     dataset_dir = dataset_dir.resolve()
     tables: dict[str, list[dict[str, str]]] = {}
-    for filename in DATASET_HEADERS:
+    for filename in (filenames or DATASET_HEADERS.keys()):
         path = dataset_dir / filename
         if not path.exists():
             raise DatasetError(f"Missing required dataset file: {filename}")
@@ -46,6 +46,10 @@ def load_dataset(dataset_dir: Path) -> dict[str, list[dict[str, str]]]:
             raise DatasetError(f"{filename} headers mismatch: expected {expected}, got {headers}")
         tables[filename] = read_csv(path)
     return tables
+
+
+def load_routing_dataset(dataset_dir: Path) -> dict[str, list[dict[str, str]]]:
+    return load_dataset(dataset_dir, ROUTING_TABLES)
 
 
 def parse_int(value: object, default: int = 0) -> int:
