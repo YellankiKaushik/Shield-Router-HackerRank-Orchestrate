@@ -9,7 +9,7 @@ from .behaviorgraph import build_features
 from .confidence import calibrate_confidence
 from .fallback_synthesis import synthesize
 from .indexes import build_indexes
-from .io import DatasetError, load_dataset, safe_media_path
+from .io import DatasetError, load_routing_dataset, safe_media_path
 from .media import extract_media
 from .online_ai import merge_advisory_safety, merge_advisory_synthesis, request_advisory
 from .provider import AIProvider
@@ -94,7 +94,7 @@ def process_message(
         confidence = calibrate_confidence(action, safety, features, synthesis, evidence, errors)
         reason = build_reason(action, rule_reason, safety, features, synthesis, evidence)
         evidence_ids = [e.message_id for e in evidence]
-        return DecisionTrace(row["message_id"], action, message_type, reason, confidence, evidence_ids, safety, features, synthesis, errors)
+        return DecisionTrace(row["message_id"], action, message_type, reason, confidence, evidence_ids, safety, features, synthesis, errors, media_facts)
     except Exception as exc:
         errors.append(type(exc).__name__)
         safety = SafetyAssessment("suspicious", "low", ("row_processing_error",), "unknown")
@@ -120,10 +120,11 @@ def run(
     provider: AIProvider | None = None,
     online: bool = False,
     local_voice: bool = False,
+    local_multimodal: bool = False,
 ) -> tuple[list[DecisionTrace], dict[str, object]]:
-    tables = load_dataset(dataset_dir)
+    tables = load_routing_dataset(dataset_dir)
     idx = build_indexes(dataset_dir, tables)
-    if local_voice and provider is not None:
+    if (local_voice or local_multimodal) and provider is not None:
         traces = [
             process_message(row, idx, provider=provider, online=True, enrich_external=False)
             for row in tables["messages.csv"]
@@ -151,19 +152,58 @@ def run(
 
 
 def _advisory_from_image_media(media: object) -> AdvisoryModelOutput:
+    facts = getattr(media, "local_image_facts", None)
+    credential_requests: list[str] = []
+    if getattr(facts, "credential_request_language", False):
+        credential_requests.append("visible credential or sensitive-code request")
+    suspicious_domains = [
+        signal.split(":", 1)[1]
+        for signal in getattr(media, "suspicious_visual_signals", [])
+        if signal.startswith("suspicious_domain:")
+    ]
+    prompt_injection = "prompt_injection" in getattr(media, "suspicious_visual_signals", [])
+    payment_pressure = "payment_pressure" in getattr(media, "suspicious_visual_signals", [])
+    risk_level = "none"
+    if prompt_injection or (credential_requests and (getattr(facts, "urgent_language", False) or getattr(facts, "payment_language", False))):
+        risk_level = "high"
+    elif getattr(media, "suspicious_visual_signals", []):
+        risk_level = "medium"
+    best_type = "unknown"
+    if risk_level == "high":
+        best_type = "scam"
+    elif getattr(facts, "layout_type", "") == "low_text_image":
+        best_type = "unknown"
+    elif _looks_like_safety_advisory(getattr(media, "visible_text", "")):
+        best_type = "business_update"
+    elif getattr(facts, "promotion_language", False):
+        best_type = "promotion"
+    elif getattr(facts, "payment_language", False):
+        best_type = "payment"
+    elif getattr(facts, "deadline_language", False) or getattr(facts, "detected_dates", []):
+        best_type = "event"
+    elif getattr(facts, "layout_type", "") == "document":
+        best_type = "event"
+    urgency = "high" if getattr(facts, "urgent_language", False) or getattr(facts, "deadline_language", False) else "medium" if getattr(facts, "detected_dates", []) else "low"
     return AdvisoryModelOutput(
         visible_image_text=getattr(media, "visible_text", ""),
         image_scene_or_poster_facts=list(getattr(media, "scene_or_poster_facts", [])),
         qr_presence=bool(getattr(media, "qr_code_present", False)),
         prices_payments=list(getattr(media, "price_or_payment_information", [])),
         dates_deadlines=list(getattr(media, "dates_and_deadlines", [])),
-        suspicious_domains=[s for s in getattr(media, "suspicious_visual_signals", []) if "." in s],
-        prompt_injection_detected="prompt_injection" in getattr(media, "suspicious_visual_signals", []),
-        risk_level="medium" if getattr(media, "suspicious_visual_signals", []) else "none",
-        best_official_message_type="unknown",
-        ambiguity=False,
+        credential_or_sensitive_data_requests=credential_requests,
+        suspicious_domains=suspicious_domains,
+        prompt_injection_detected=prompt_injection,
+        risk_level=risk_level,
+        urgency_level=urgency,
+        best_official_message_type=best_type,
+        ambiguity=getattr(facts, "layout_type", "") in {"low_text_image", "unknown"} or payment_pressure,
         concise_grounded_semantic_facts=list(getattr(media, "scene_or_poster_facts", []))[:4],
     )
+
+
+def _looks_like_safety_advisory(text: str) -> bool:
+    low = (text or "").casefold()
+    return any(phrase in low for phrase in ("scammer", "scammers", "secure banking", "moohbandrakho", "do not share otp", "never ask for otp"))
 
 
 def select_external_enrichment_rows(rows: list[dict[str, str]], offline_traces: list[DecisionTrace], max_text: int = 12) -> set[str]:
