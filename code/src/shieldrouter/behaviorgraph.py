@@ -24,6 +24,17 @@ URGENT_WORDS = {
     "need",
     "emergency",
     "minutes",
+    "confirm",
+    "scheduled",
+    "appointment",
+    "pickup",
+    "consent",
+    "timing",
+    "review",
+    "escalation",
+    "threshold",
+    "unwell",
+    "clinic",
 }
 PROMO_WORDS = {"sale", "discount", "offer", "coupon", "deal", "flat", "cashback", "limited", "promo"}
 
@@ -61,17 +72,45 @@ def detect_direct_mention(row: dict[str, str]) -> bool:
         return True
     if row.get("conversation_type") == "personal":
         return True
-    return any(phrase in text for phrase in ("can you", "need you", "your child", "your flat", "your account", "please reply", "pls reply", "reply once"))
+    phrases = [
+        "can you",
+        "need you",
+        "your child",
+        "your flat",
+        "your account",
+        "please reply",
+        "pls reply",
+        "reply once",
+    ]
+    if row.get("media_type") == "voice":
+        phrases.extend(["please call", "call now"])
+    return any(
+        phrase in text
+        for phrase in phrases
+    )
 
 
 def urgency_score(row: dict[str, str]) -> float:
     tokens = set(tokenize(row.get("message_text", "")))
+    text = lower_text(row.get("message_text", ""))
     score = 0.0
     score += min(0.5, 0.1 * len(tokens & URGENT_WORDS))
     if detect_direct_mention(row):
         score += 0.25
-    if any(x in lower_text(row.get("message_text", "")) for x in ("15 mins", "20 mins", "before eod", "by 7", "expire today", "expires today")):
+    if any(x in text for x in ("15 mins", "20 mins", "before eod", "by 7", "expire today", "expires today", "in 20 minutes", "before the scheduled time", "before tomorrow morning", "before i confirm")):
         score += 0.25
+    if row.get("media_type") == "voice" and any(x in text for x in ("call now", "please call now", "dad is unwell", "going to the clinic", "going to clinic")):
+        score += 0.35
+    if row.get("conversation_type") == "business" and any(x in text for x in ("expected to reach", "local hub today", "has been packed", "packed and", "appointment", "scheduled time", "prescription", "claim", "pickup details", "booking")):
+        score += 0.45
+    if row.get("conversation_type") == "group" and any(x in text for x in ("school circular", "field-trip", "pickup timing", "consent note", "bus is leaving", "water now", "motor room", "plumber")):
+        score += 0.25
+    if row.get("conversation_type") == "group" and any(x in text for x in ("school circular", "consent note", "timing and consent")):
+        score += 0.15
+    if row.get("conversation_type") == "group" and any(
+        x in text for x in ("incident bridge", "payments are failing", "live users", "checkout error", "join the incident")
+    ):
+        score += 0.45
     return _bounded(score)
 
 
@@ -98,9 +137,14 @@ def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], 
     reported = parse_int(user.get("messages_reported_30d"))
     user_affinity = (opened + 2 * replied) / max(1, opened + replied + dismissed + reported)
 
+    same_sender_history = sum(
+        1
+        for hist in idx.history_by_user.get(row.get("user_id", ""), [])
+        if row.get("sender_user_id") and hist.get("sender_user_id") == row.get("sender_user_id")
+    )
     trust = 0.2
     if row.get("conversation_type") == "personal":
-        trust += 0.35
+        trust += 0.35 if same_sender_history else 0.08
     if membership.get("role") == "admin":
         trust += 0.2
     if group.get("group_type") in {"family", "school_group", "work", "society"}:
@@ -120,7 +164,23 @@ def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], 
     affinity = _bounded(0.2 + user_affinity * 0.3 + (ubh_open + 2 * ubh_reply + group_read + 2 * group_reply) / max(1, 20 + ubh_dismiss + group_dismiss))
 
     promotion_opt_out = bool(ubh and (ubh.get("allows_promotions") == "0" or bool(ubh.get("promotions_opted_out_at"))))
-    fatigue = _bounded((dismissed / max(1, opened + dismissed + 10)) + (ubh_dismiss / 12) + (group_dismiss / 18) + (0.35 if promotion_opt_out and _looks_promotional(row) else 0))
+    evidence_dismissed = 0
+    evidence_engaged = 0
+    for candidate in evidence:
+        event = idx.events.get(candidate.message_id, {})
+        if event.get("notification_dismissed") == "1" or event.get("muted_after_message") == "1" or event.get("message_reported") == "1":
+            evidence_dismissed += 1
+        if event.get("message_opened") == "1" or event.get("message_replied") == "1":
+            evidence_engaged += 1
+    fatigue = _bounded(
+        (dismissed / max(1, opened + dismissed + 10))
+        + (ubh_dismiss / 12)
+        + (group_dismiss / 18)
+        + (0.35 if promotion_opt_out and _looks_promotional(row) else 0)
+        + (0.28 if evidence_dismissed and _looks_promotional(row) else 0)
+        + (0.18 if evidence_dismissed >= 2 and parse_int(row.get("forwarded_count")) >= 3 else 0)
+        - (0.08 if evidence_engaged and not _looks_promotional(row) else 0)
+    )
 
     daily = idx.daily_by_user.get(row.get("user_id", ""), [])
     if daily:
@@ -153,4 +213,7 @@ def build_features(row: dict[str, str], idx, evidence: list[EvidenceCandidate], 
 
 def _looks_promotional(row: dict[str, str]) -> bool:
     tokens = set(tokenize(row.get("message_text", "")))
-    return bool(tokens & PROMO_WORDS) or row.get("conversation_type") == "business"
+    text = lower_text(row.get("message_text", ""))
+    return bool(tokens & PROMO_WORDS) or any(
+        phrase in text for phrase in ("reply stop", "unsubscribe", "50% off", "shopping offer", "cashback", "sale", "discount", "coupon", "deal")
+    )
