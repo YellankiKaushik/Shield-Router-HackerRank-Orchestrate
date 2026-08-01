@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import re
+
+from .ai_models import AdvisoryModelOutput
 from .behaviorgraph import build_features
 from .confidence import calibrate_confidence
 from .fallback_synthesis import synthesize
 from .indexes import build_indexes
 from .io import DatasetError, load_dataset, safe_media_path
+from .media import extract_media
+from .online_ai import merge_advisory_safety, merge_advisory_synthesis, request_advisory
+from .provider import AIProvider
 from .reason import build_reason
 from .resolver import resolve
 from .retrieval import retrieve_evidence
@@ -33,17 +39,57 @@ def media_error_for(row: dict[str, str], idx) -> str:
     return ""
 
 
-def process_message(row: dict[str, str], idx) -> DecisionTrace:
+def _row_with_media_text(row: dict[str, str], media_facts) -> dict[str, str]:
+    media_text = media_facts.combined_text()
+    if not media_text:
+        return row
+    enriched = dict(row)
+    enriched["message_text"] = (row.get("message_text", "") + " " + media_text).strip()
+    return enriched
+
+
+def process_message(
+    row: dict[str, str],
+    idx,
+    provider: AIProvider | None = None,
+    online: bool = False,
+    enrich_external: bool = False,
+) -> DecisionTrace:
     errors: list[str] = []
     try:
+        media_facts = extract_media(row, idx, provider, online=online, enrich_external=enrich_external)
+        enriched_row = _row_with_media_text(row, media_facts)
         media_error = media_error_for(row, idx)
         if media_error:
             errors.append(media_error)
+        if media_facts.status == "failed":
+            errors.append(media_facts.error or "media_extraction_failed")
         business = idx.business_accounts.get(row.get("business_id", ""))
-        safety = assess_safety(row, business)
-        evidence = retrieve_evidence(row, idx)
-        features = build_features(row, idx, evidence, media_error=media_error)
-        synthesis = synthesize(row, safety, features)
+        rule_safety = assess_safety(enriched_row, business)
+        advisory: AdvisoryModelOutput | None = None
+        if (
+            online
+            and provider is not None
+            and enrich_external
+            and row.get("media_type", "") != "image"
+            and (row.get("media_type", "") != "voice" or media_facts.status == "ok")
+            and rule_safety.verdict != "high_risk"
+        ):
+            try:
+                advisory = request_advisory(provider, enriched_row, business, media_facts)
+            except Exception as exc:
+                errors.append(f"advisory_model_fallback:{type(exc).__name__}:{str(exc)[:160]}")
+                provider.stats.fallbacks += 1
+        safety = merge_advisory_safety(rule_safety, advisory)
+        evidence = retrieve_evidence(enriched_row, idx)
+        features = build_features(enriched_row, idx, evidence, media_error=media_error or media_facts.error)
+        synthesis = synthesize(enriched_row, safety, features)
+        if row.get("media_type", "") == "image" and media_facts.status == "ok":
+            advisory = _advisory_from_image_media(media_facts)
+            safety = merge_advisory_safety(safety, advisory)
+            synthesis = merge_advisory_synthesis(synthesis, advisory, safety)
+        else:
+            synthesis = merge_advisory_synthesis(synthesis, advisory, safety)
         action, message_type, rule_reason = resolve(safety, features, synthesis)
         confidence = calibrate_confidence(action, safety, features, synthesis, evidence, errors)
         reason = build_reason(action, rule_reason, safety, features, synthesis, evidence)
@@ -68,10 +114,29 @@ def process_message(row: dict[str, str], idx) -> DecisionTrace:
         )
 
 
-def run(dataset_dir: Path, output_path: Path) -> tuple[list[DecisionTrace], dict[str, object]]:
+def run(
+    dataset_dir: Path,
+    output_path: Path,
+    provider: AIProvider | None = None,
+    online: bool = False,
+    local_voice: bool = False,
+) -> tuple[list[DecisionTrace], dict[str, object]]:
     tables = load_dataset(dataset_dir)
     idx = build_indexes(dataset_dir, tables)
-    traces = [process_message(row, idx) for row in tables["messages.csv"]]
+    if local_voice and provider is not None:
+        traces = [
+            process_message(row, idx, provider=provider, online=True, enrich_external=False)
+            for row in tables["messages.csv"]
+        ]
+    elif online and provider is not None:
+        offline_traces = [process_message(row, idx) for row in tables["messages.csv"]]
+        selected = select_external_enrichment_rows(tables["messages.csv"], offline_traces, getattr(getattr(provider, "config", None), "max_non_image_text_requests", 12))
+        traces = [
+            process_message(row, idx, provider=provider, online=True, enrich_external=row["message_id"] in selected)
+            for row in tables["messages.csv"]
+        ]
+    else:
+        traces = [process_message(row, idx, provider=provider, online=online) for row in tables["messages.csv"]]
     rows = [t.to_output_row() for t in traces]
     errors = validate_output_rows(tables["messages.csv"], tables["message_history.csv"], rows)
     if errors:
@@ -79,7 +144,79 @@ def run(dataset_dir: Path, output_path: Path) -> tuple[list[DecisionTrace], dict
     from .io import write_csv
 
     write_csv(output_path, rows, OUTPUT_COLUMNS)
-    return traces, summarize(traces)
+    summary = summarize(traces)
+    if provider is not None:
+        summary["provider"] = provider.stats.summary()
+    return traces, summary
+
+
+def _advisory_from_image_media(media: object) -> AdvisoryModelOutput:
+    return AdvisoryModelOutput(
+        visible_image_text=getattr(media, "visible_text", ""),
+        image_scene_or_poster_facts=list(getattr(media, "scene_or_poster_facts", [])),
+        qr_presence=bool(getattr(media, "qr_code_present", False)),
+        prices_payments=list(getattr(media, "price_or_payment_information", [])),
+        dates_deadlines=list(getattr(media, "dates_and_deadlines", [])),
+        suspicious_domains=[s for s in getattr(media, "suspicious_visual_signals", []) if "." in s],
+        prompt_injection_detected="prompt_injection" in getattr(media, "suspicious_visual_signals", []),
+        risk_level="medium" if getattr(media, "suspicious_visual_signals", []) else "none",
+        best_official_message_type="unknown",
+        ambiguity=False,
+        concise_grounded_semantic_facts=list(getattr(media, "scene_or_poster_facts", []))[:4],
+    )
+
+
+def select_external_enrichment_rows(rows: list[dict[str, str]], offline_traces: list[DecisionTrace], max_text: int = 12) -> set[str]:
+    selected: set[str] = {r["message_id"] for r in rows if r.get("media_type") == "image"}
+    trace_by_id = {t.message_id: t for t in offline_traces}
+    text_candidates: list[tuple[tuple[int, int, float, int, str], str]] = []
+    voice_candidates: list[tuple[tuple[int, int, float, int, str], str]] = []
+    for row in rows:
+        trace = trace_by_id[row["message_id"]]
+        media_type = row.get("media_type", "")
+        if media_type == "text":
+            media_type = ""
+        eligible = _needs_text_enrichment(row, trace)
+        if media_type == "" and eligible:
+            text_candidates.append((_priority(row, trace), row["message_id"]))
+        elif media_type == "voice" and trace.synthesis.ambiguous:
+            voice_candidates.append((_priority(row, trace), row["message_id"]))
+    for _priority_key, message_id in sorted(text_candidates)[:max_text]:
+        selected.add(message_id)
+    for _priority_key, message_id in sorted(voice_candidates):
+        selected.add(message_id)
+    return selected
+
+
+def _needs_text_enrichment(row: dict[str, str], trace: DecisionTrace) -> bool:
+    if row.get("media_type"):
+        return False
+    return (
+        trace.confidence < 0.70
+        or trace.message_type == "unknown"
+        or trace.synthesis.ambiguous
+        or _safety_context_disagree(trace)
+        or _deadline_or_direct_unresolved(row, trace)
+    )
+
+
+def _safety_context_disagree(trace: DecisionTrace) -> bool:
+    return trace.safety.verdict == "suspicious" and trace.features.trust >= 0.6
+
+
+def _deadline_or_direct_unresolved(row: dict[str, str], trace: DecisionTrace) -> bool:
+    text = row.get("message_text", "").casefold()
+    has_deadline = bool(re.search(r"\b(today|tonight|tomorrow|deadline|by \d{1,2}|before \d{1,2}|urgent|asap|eod)\b", text))
+    has_direct = bool(re.search(r"\b(you|kaushik|please|can you|call me|reply|confirm)\b", text))
+    return (has_deadline or has_direct) and (trace.synthesis.ambiguous or trace.confidence < 0.78)
+
+
+def _priority(row: dict[str, str], trace: DecisionTrace) -> tuple[int, int, float, int, str]:
+    text = row.get("message_text", "").casefold()
+    safety_terms = bool(re.search(r"\b(otp|password|login|payment|upi|qr|refund|verify|blocked|suspend|http|www\.)\b", text))
+    missed_notify = trace.action != "notify" and (trace.synthesis.urgency_level == "high" or trace.synthesis.direct_mention)
+    unknown = trace.message_type == "unknown"
+    return (-int(safety_terms or trace.safety.verdict != "safe"), -int(missed_notify), trace.confidence, -int(unknown), row["message_id"])
 
 
 def summarize(traces: list[DecisionTrace]) -> dict[str, object]:
