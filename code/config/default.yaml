@@ -5,3 +5,17 @@ load_digest: 0.72
 evidence_threshold: 0.08
 max_evidence: 5
 forwarded_chain_threshold: 5
+openrouter:
+  base_url: https://openrouter.ai/api/v1
+  text_model: openrouter/free
+  vision_model: openrouter/free
+  max_requests: 35
+  timeout_seconds: 40
+  max_retries: 1
+  max_non_image_text_requests: 12
+local_whisper:
+  model: small
+  device: cpu
+  compute_type: int8
+  local_files_only: true
+  allow_model_fallback: true
