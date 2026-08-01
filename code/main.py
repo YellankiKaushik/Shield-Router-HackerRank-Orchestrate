@@ -136,6 +136,7 @@ def cmd_trace(args: argparse.Namespace) -> int:
         },
         "features": trace.features.__dict__,
         "synthesis": trace.synthesis.__dict__,
+        "exception_check": trace.exception_check.__dict__ if trace.exception_check else None,
         "errors": trace.errors,
     }
     print(json.dumps(payload, indent=2, sort_keys=True, default=str))

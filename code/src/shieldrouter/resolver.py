@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 
-def resolve(safety, features, synthesis) -> tuple[str, str, str]:
+def resolve(safety, features, synthesis, exception_check=None) -> tuple[str, str, str]:
     if safety.verdict == "high_risk":
         return "mute", "scam", "hard safety risk"
+    if exception_check is not None and exception_check.eligible_for_notify:
+        return "notify", synthesis.message_type if synthesis.message_type != "unknown" else "urgent", exception_check.reason
+    critical_direct = (
+        synthesis.direct_mention
+        and synthesis.urgency_level == "high"
+        and synthesis.message_type not in {"promotion", "spam", "forward"}
+    )
+    if features.group_muted and synthesis.urgency_level == "high" and not (exception_check and exception_check.eligible_for_notify):
+        return "digest", synthesis.message_type if synthesis.message_type != "unknown" else "urgent", "muted group queued without critical trusted exception"
+    if (features.in_quiet_hours or features.relative_load >= 0.72) and synthesis.preliminary_action == "notify" and not critical_direct:
+        return "digest", synthesis.message_type, "queued by quiet hours or notification load"
     if (
         safety.verdict == "safe"
-        and synthesis.direct_mention
-        and synthesis.urgency_level == "high"
+        and critical_direct
         and (features.trust >= 0.38 or features.affinity >= 0.75)
     ):
         return "notify", synthesis.message_type if synthesis.message_type != "unknown" else "urgent", "trusted critical direct mention"
