@@ -31,6 +31,9 @@ def synthesize(row: dict[str, str], safety, features) -> Synthesis:
     elif row.get("conversation_type") == "business" and _is_business_update(text, tokens):
         message_type = "business_update"
         facts.append("verified business update or account notice")
+    elif _is_school_event(text):
+        message_type = "event"
+        facts.append("school operational update")
     elif any(w in tokens for w in {"pay", "payment", "upi", "bank", "card", "invoice", "refund", "fee"}) and not _is_work_incident(text):
         message_type = "payment"
         facts.append("message concerns payment or account activity")
@@ -40,9 +43,6 @@ def synthesize(row: dict[str, str], safety, features) -> Synthesis:
     elif _is_direct_personal_request(text, features):
         message_type = "personal"
         facts.append("direct personal response request")
-    elif _is_school_event(text):
-        message_type = "event"
-        facts.append("school operational update")
     elif features.urgency >= 0.55 and (features.direct_mention or _is_work_incident(text)):
         message_type = "urgent"
         facts.append("urgent direct request or deadline was detected")
@@ -96,7 +96,10 @@ def synthesize(row: dict[str, str], safety, features) -> Synthesis:
 
 
 def _is_promotion(row: dict[str, str], text: str, tokens: set[str]) -> bool:
-    return bool(tokens & {"sale", "discount", "offer", "deal", "coupon", "cashback", "promo", "selling", "unsubscribe", "itinerary"}) or any(
+    promo_tokens = set(tokens) & {"sale", "discount", "offer", "deal", "coupon", "cashback", "promo", "selling", "unsubscribe", "itinerary"}
+    if "offer" in promo_tokens and any(phrase in text for phrase in ("offer letter", "internship offer", "job offer")):
+        promo_tokens.remove("offer")
+    return bool(promo_tokens) or any(
         phrase in text for phrase in ("50% off", "reply stop", "rs 17,999", "tap below to view the itinerary", "shopping offer", "saved items", "kurta set", "cycle helmet")
     )
 
