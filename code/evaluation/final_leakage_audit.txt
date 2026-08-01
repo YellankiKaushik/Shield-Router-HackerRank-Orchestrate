@@ -1,0 +1,38 @@
+ShieldRouter Final Leakage And Hardcoding Audit
+
+Scope:
+- Production source searched: code/src/ and code/main.py
+- Production routing path reviewed: code/main.py cmd_run -> shieldrouter.orchestrator.run -> process_message
+
+Correction made before final freeze:
+- Found production run previously loaded all dataset files via load_dataset(), which included sample_messages.csv and dataset/output.csv.
+- Found cmd_run previously read code/evaluation/baselines/local_voice_tuned.csv indirectly to emit local_image_comparison.csv.
+- Corrected generally by adding load_routing_dataset(), making run/trace/smoke-online load only ROUTING_TABLES, and removing baseline-comparison reads from cmd_run.
+
+Searches Performed:
+
+1. rg -n "sample_messages\.csv|sample_eval|sample_error|baselines|offline_tuned|local_voice_tuned|local_multimodal_tuned|hybrid_openrouter|output\.csv" code/src code/main.py
+Result:
+- code/main.py references sample_messages.csv only inside cmd_evaluate_sample.
+- code/src/shieldrouter/io.py and schemas.py define/validate sample/output schema metadata.
+- ROUTING_TABLES explicitly excludes sample_messages.csv and output.csv.
+- No baseline CSV reads remain in production routing.
+
+2. rg -n "\b(?:msg|sample_msg|message)_\d{3,4}\b|message_id\s*==|message_id\s+in|\[\s*['"]message_id['"]\s*\]" code/src code/main.py
+Result:
+- No incoming msg_###, sample_msg_###, or historical message_#### constants found.
+- Remaining message_id variables are generic loop variables and sort keys, not ID-specific conditions.
+
+3. rg -n "Photos for the kurta|School circular attached|You just dropped|Safety advisory image|expected_action|expected_message_type|expected labels|copied sample|hardcoded output|expected_sample" code/src code/main.py
+Result:
+- Expected-label terms occur only in cmd_evaluate_sample error reporting and in an online advisory instruction telling models not to use expected labels.
+- No copied sample reasons or hardcoded output rows found.
+
+4. rg -n "read_csv\(|load_dataset\(|load_routing_dataset\(|open\(" code/src code/main.py
+Result:
+- Production run uses load_routing_dataset() in shieldrouter/orchestrator.py.
+- cmd_run no longer reads sample, output, evaluation reports, or baseline CSVs.
+- load_dataset() remains for validate-input and evaluate-sample only.
+
+Conclusion:
+PASS after correction. No production leakage, message-specific rule, hardcoded output row, sample-label read, evaluation-report read, or runtime baseline read remains in the production routing path.
