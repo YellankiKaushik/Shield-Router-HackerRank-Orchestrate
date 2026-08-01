@@ -6,7 +6,7 @@ from .normalize import extract_domains, lower_text
 from .schemas import SafetyAssessment
 
 
-CREDENTIAL_RE = re.compile(r"\b(otp|pin|password|passcode|login code|verification code|6 digit|six digit|cvv|card number|account number|upi pin)\b", re.I)
+CREDENTIAL_RE = re.compile(r"\b(otp|pin|password|passcode|login code|verification code|6 digit|six digit|cvv|card number|card details|wallet details|payment details|account number|account details|upi pin)\b", re.I)
 REQUEST_RE = re.compile(r"\b(reply|send|share|enter|provide|confirm|verify|submit)\b", re.I)
 PRESSURE_RE = re.compile(r"\b(expire|expires|blocked|suspend|locked|urgent|immediately|act now|today|release|refund|reward|prize|claim)\b", re.I)
 PAYMENT_RE = re.compile(r"\b(pay|payment|qr|scan|upi|reattempt fee|fee|transfer|deposit|bank)\b", re.I)
@@ -70,7 +70,8 @@ def assess_safety(row: dict[str, str], business: dict[str, str] | None = None) -
             "unverified_financial_sender",
         )
     ) and any("credential" in s or "payment" in s or "domain" in s or "injection" in s for s in signals)
-    if high or any(s.startswith("mismatched_domain") for s in signals) and ("credential" in " ".join(signals) or PRESSURE_RE.search(low)):
+    suspicious_domain_pressure = any(s.startswith("suspicious_domain") for s in signals) and PRESSURE_RE.search(low) and REQUEST_RE.search(low)
+    if high or suspicious_domain_pressure or any(s.startswith("mismatched_domain") for s in signals) and ("credential" in " ".join(signals) or PRESSURE_RE.search(low)):
         return SafetyAssessment("high_risk", "high", tuple(dict.fromkeys(signals)), "scam")
     if signals:
         if "chain_or_excessive_forwarding" in signals:
