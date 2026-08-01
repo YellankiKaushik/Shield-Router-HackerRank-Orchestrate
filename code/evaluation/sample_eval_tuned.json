@@ -1,0 +1,146 @@
+{
+  "action_accuracy": 0.9667,
+  "action_confusion": {
+    "digest->digest": 11,
+    "mute->mute": 10,
+    "notify->digest": 1,
+    "notify->notify": 8
+  },
+  "action_macro_f1": 0.9659,
+  "action_metrics": {
+    "digest": {
+      "f1": 0.9565,
+      "fn": 0,
+      "fp": 1,
+      "precision": 0.9167,
+      "recall": 1.0,
+      "tp": 11
+    },
+    "mute": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 10
+    },
+    "notify": {
+      "f1": 0.9412,
+      "fn": 1,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 0.8889,
+      "tp": 8
+    }
+  },
+  "confidence": {
+    "max": 0.95,
+    "mean": 0.7683,
+    "min": 0.6
+  },
+  "evidence_usage_rate": 0.9667,
+  "evidence_validity": "passed",
+  "false_negative_urgent_notifications": [
+    "sample_msg_042"
+  ],
+  "false_positive_scams": [],
+  "message_type_accuracy": 0.9667,
+  "message_type_confusion": {
+    "business_update->business_update": 3,
+    "event->event": 4,
+    "forward->forward": 1,
+    "greeting->greeting": 2,
+    "personal->personal": 4,
+    "promotion->promotion": 6,
+    "scam->scam": 4,
+    "spam->spam": 1,
+    "unknown->unknown": 1,
+    "urgent->personal": 1,
+    "urgent->urgent": 3
+  },
+  "message_type_macro_f1": 0.9746,
+  "message_type_metrics": {
+    "business_update": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 3
+    },
+    "event": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 4
+    },
+    "forward": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "greeting": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 2
+    },
+    "personal": {
+      "f1": 0.8889,
+      "fn": 0,
+      "fp": 1,
+      "precision": 0.8,
+      "recall": 1.0,
+      "tp": 4
+    },
+    "promotion": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 6
+    },
+    "scam": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 4
+    },
+    "spam": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "unknown": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "urgent": {
+      "f1": 0.8571,
+      "fn": 1,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 0.75,
+      "tp": 3
+    }
+  },
+  "reason_consistency": "passed",
+  "sample_rows": 30
+}
