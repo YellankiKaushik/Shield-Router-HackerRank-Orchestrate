@@ -1,0 +1,199 @@
+{
+  "action_accuracy": 0.9667,
+  "action_confusion": {
+    "digest->digest": 11,
+    "mute->digest": 1,
+    "mute->mute": 9,
+    "notify->notify": 9
+  },
+  "action_macro_f1": 0.968,
+  "action_metrics": {
+    "digest": {
+      "f1": 0.9565,
+      "fn": 0,
+      "fp": 1,
+      "precision": 0.9167,
+      "recall": 1.0,
+      "tp": 11
+    },
+    "mute": {
+      "f1": 0.9474,
+      "fn": 1,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 0.9,
+      "tp": 9
+    },
+    "notify": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 9
+    }
+  },
+  "confidence": {
+    "max": 0.95,
+    "mean": 0.7687,
+    "min": 0.6
+  },
+  "evidence_usage_rate": 0.9,
+  "evidence_validity": "passed",
+  "false_negative_urgent_notifications": [],
+  "false_positive_scams": [],
+  "image_message_correctness": {
+    "action_accuracy": 0.8,
+    "correct_ids": [
+      "sample_msg_044",
+      "sample_msg_045",
+      "sample_msg_046"
+    ],
+    "image_sample_rows": 5,
+    "message_type_accuracy": 0.6,
+    "missed_ids": [
+      "sample_msg_047",
+      "sample_msg_048"
+    ]
+  },
+  "message_type_accuracy": 0.9333,
+  "message_type_confusion": {
+    "business_update->business_update": 2,
+    "business_update->unknown": 1,
+    "event->event": 4,
+    "forward->forward": 1,
+    "greeting->greeting": 2,
+    "personal->personal": 4,
+    "promotion->promotion": 5,
+    "promotion->unknown": 1,
+    "scam->scam": 4,
+    "spam->spam": 1,
+    "unknown->unknown": 1,
+    "urgent->urgent": 4
+  },
+  "message_type_macro_f1": 0.9209,
+  "message_type_metrics": {
+    "business_update": {
+      "f1": 0.8,
+      "fn": 1,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 0.6667,
+      "tp": 2
+    },
+    "event": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 4
+    },
+    "forward": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "greeting": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 2
+    },
+    "personal": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 4
+    },
+    "promotion": {
+      "f1": 0.9091,
+      "fn": 1,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 0.8333,
+      "tp": 5
+    },
+    "scam": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 4
+    },
+    "spam": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "unknown": {
+      "f1": 0.5,
+      "fn": 0,
+      "fp": 2,
+      "precision": 0.3333,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "urgent": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 4
+    }
+  },
+  "provider": {
+    "actual_models": [],
+    "cache_hit_count": 0,
+    "cache_hit_rate": 0.0,
+    "fallback_count": 0,
+    "image_extraction_attempts": 0,
+    "image_extraction_cache_hits": 0,
+    "image_extraction_failures": 0,
+    "image_extraction_successes": 0,
+    "latency_seconds_mean": 0.0,
+    "latency_seconds_total": 0,
+    "max_requests": 0,
+    "media_call_count": 0,
+    "provider_call_count": 0,
+    "qr_codes_detected": 0,
+    "remaining_requests": 0,
+    "request_count": 0,
+    "retry_count": 0,
+    "sanitized_error_types": [],
+    "token_usage": [],
+    "transcription_attempts": 3,
+    "transcription_cache_hits": 3,
+    "transcription_failures": 0,
+    "transcription_successes": 3,
+    "whisper_fallback_reason": "",
+    "whisper_model_used": "small"
+  },
+  "reason_consistency": "passed",
+  "sample_rows": 30,
+  "urgent_notify_precision": 1.0,
+  "urgent_notify_recall": 1.0,
+  "voice_message_correctness": {
+    "action_accuracy": 1.0,
+    "correct_ids": [
+      "sample_msg_041",
+      "sample_msg_042",
+      "sample_msg_043"
+    ],
+    "message_type_accuracy": 1.0,
+    "missed_ids": [],
+    "voice_sample_rows": 3
+  }
+}
