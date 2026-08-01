@@ -12,9 +12,9 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from shieldrouter.indexes import build_indexes
-from shieldrouter.io import DatasetError, load_dataset, read_csv, validate_dataset
+from shieldrouter.io import DatasetError, load_dataset, load_routing_dataset, read_csv, validate_dataset
 from shieldrouter.orchestrator import process_message, run, summarize
-from shieldrouter.provider import LocalVoiceProvider, OpenRouterProvider, ProviderError, WhisperConfig
+from shieldrouter.provider import LocalMultimodalProvider, LocalVoiceProvider, OpenRouterProvider, ProviderError, WhisperConfig
 from shieldrouter.schemas import OUTPUT_COLUMNS
 from shieldrouter.validate import validate_output_rows
 
@@ -38,13 +38,22 @@ def cmd_validate_input(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    if args.online and getattr(args, "local_voice", False):
-        raise DatasetError("--online and --local-voice are mutually exclusive")
+    if args.online and (getattr(args, "local_voice", False) or getattr(args, "local_multimodal", False)):
+        raise DatasetError("--online cannot be combined with local zero-network modes")
+    if getattr(args, "local_voice", False) and getattr(args, "local_multimodal", False):
+        raise DatasetError("--local-voice and --local-multimodal are mutually exclusive")
     provider = make_provider(args)
     started = time.perf_counter()
-    traces, summary = run(Path(args.dataset), Path(args.output), provider=provider, online=args.online, local_voice=getattr(args, "local_voice", False))
+    traces, summary = run(
+        Path(args.dataset),
+        Path(args.output),
+        provider=provider,
+        online=args.online,
+        local_voice=getattr(args, "local_voice", False),
+        local_multimodal=getattr(args, "local_multimodal", False),
+    )
     summary["runtime_seconds"] = round(time.perf_counter() - started, 4)
-    if getattr(args, "local_voice", False):
+    if getattr(args, "local_voice", False) or getattr(args, "local_multimodal", False):
         _assert_zero_provider_requests(summary)
     print("RUN OK")
     print_summary(summary)
@@ -57,7 +66,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_validate_output(args: argparse.Namespace) -> int:
     dataset = Path(args.dataset)
-    tables = load_dataset(dataset)
+    tables = load_routing_dataset(dataset)
     rows = read_csv(Path(args.output))
     errors = validate_output_rows(tables["messages.csv"], tables["message_history.csv"], rows)
     if errors:
@@ -71,14 +80,15 @@ def cmd_validate_output(args: argparse.Namespace) -> int:
 
 def cmd_trace(args: argparse.Namespace) -> int:
     dataset = Path(args.dataset)
-    tables = load_dataset(dataset)
+    tables = load_routing_dataset(dataset)
     idx = build_indexes(dataset, tables)
     row = next((r for r in tables["messages.csv"] if r["message_id"] == args.message_id), None)
     if row is None:
         print(f"Unknown message_id: {args.message_id}")
         return 1
     provider = make_provider(args)
-    trace = process_message(row, idx, provider=provider, online=args.online or getattr(args, "local_voice", False), enrich_external=False)
+    local_mode = getattr(args, "local_voice", False) or getattr(args, "local_multimodal", False)
+    trace = process_message(row, idx, provider=provider, online=args.online or local_mode, enrich_external=False)
     payload = {
         "output": trace.to_output_row(),
         "safety": {
@@ -97,7 +107,7 @@ def cmd_trace(args: argparse.Namespace) -> int:
 def cmd_smoke_online(args: argparse.Namespace) -> int:
     provider = make_provider(args, require_online=True)
     dataset = Path(args.dataset)
-    tables = load_dataset(dataset)
+    tables = load_routing_dataset(dataset)
     idx = build_indexes(dataset, tables)
     selected = []
     cases = [
@@ -158,6 +168,16 @@ def cmd_smoke_online(args: argparse.Namespace) -> int:
 
 
 def make_provider(args: argparse.Namespace, require_online: bool = False):
+    if getattr(args, "local_multimodal", False):
+        config = WhisperConfig.from_env()
+        config = WhisperConfig(
+            model=config.model,
+            device=config.device,
+            compute_type=config.compute_type,
+            local_files_only=True,
+            allow_model_fallback=False,
+        )
+        return LocalMultimodalProvider(cache_dir=Path(getattr(args, "cache_dir", "code/.shieldrouter_cache")), config=config)
     if getattr(args, "local_voice", False):
         config = WhisperConfig.from_env()
         config = WhisperConfig(
@@ -195,7 +215,7 @@ def _assert_zero_provider_requests(summary: dict[str, object]) -> None:
         if int(provider.get(key, 0) or 0) != 0
     }
     if nonzero:
-        raise DatasetError(f"Local voice mode made forbidden provider requests: {nonzero}")
+        raise DatasetError(f"Local zero-network mode made forbidden provider requests: {nonzero}")
 
 
 def _load_env_file(path: Path) -> None:
@@ -220,11 +240,12 @@ def cmd_evaluate_sample(args: argparse.Namespace) -> int:
     dataset = Path(args.dataset)
     tables = load_dataset(dataset)
     idx = build_indexes(dataset, tables)
-    provider = make_provider(args) if getattr(args, "local_voice", False) else None
+    local_mode = getattr(args, "local_voice", False) or getattr(args, "local_multimodal", False)
+    provider = make_provider(args) if local_mode else None
     traces = []
     for sample in tables["sample_messages.csv"]:
         incoming = {k: sample[k] for k in tables["messages.csv"][0].keys()}
-        traces.append(process_message(incoming, idx, provider=provider, online=getattr(args, "local_voice", False), enrich_external=False))
+        traces.append(process_message(incoming, idx, provider=provider, online=local_mode, enrich_external=False))
     pred_rows = [t.to_output_row() for t in traces]
     expected_actions = [r["action"] for r in tables["sample_messages.csv"]]
     predicted_actions = [r["action"] for r in pred_rows]
@@ -261,6 +282,7 @@ def cmd_evaluate_sample(args: argparse.Namespace) -> int:
     report["urgent_notify_precision"] = notify_metrics.get("precision", 0.0)
     report["urgent_notify_recall"] = notify_metrics.get("recall", 0.0)
     report["voice_message_correctness"] = _voice_correctness(tables["sample_messages.csv"], pred_rows)
+    report["image_message_correctness"] = _image_correctness(tables["sample_messages.csv"], pred_rows)
     if provider is not None:
         provider_summary = provider.stats.summary()
         _assert_zero_provider_requests({"provider": provider_summary})
@@ -330,6 +352,25 @@ def _voice_correctness(sample_rows: list[dict[str, str]], pred_rows: list[dict[s
     }
 
 
+def _image_correctness(sample_rows: list[dict[str, str]], pred_rows: list[dict[str, str]]) -> dict[str, object]:
+    pred_by_id = {r["message_id"]: r for r in pred_rows}
+    image_rows = [r for r in sample_rows if r.get("media_type") == "image" and r["message_id"] in pred_by_id]
+    if not image_rows:
+        return {"image_sample_rows": 0, "action_accuracy": None, "message_type_accuracy": None, "correct_ids": [], "missed_ids": []}
+    correct_ids = [
+        r["message_id"]
+        for r in image_rows
+        if pred_by_id[r["message_id"]]["action"] == r["action"] and pred_by_id[r["message_id"]]["message_type"] == r["message_type"]
+    ]
+    return {
+        "image_sample_rows": len(image_rows),
+        "action_accuracy": round(sum(pred_by_id[r["message_id"]]["action"] == r["action"] for r in image_rows) / len(image_rows), 4),
+        "message_type_accuracy": round(sum(pred_by_id[r["message_id"]]["message_type"] == r["message_type"] for r in image_rows) / len(image_rows), 4),
+        "correct_ids": correct_ids,
+        "missed_ids": [r["message_id"] for r in image_rows if r["message_id"] not in correct_ids],
+    }
+
+
 def _suggest_correction(expected: dict[str, str], predicted: dict[str, str]) -> str:
     if expected["action"] == "notify" and predicted["action"] != "notify":
         return "Improve trusted urgency, direct request, media transcript, or transaction-update detection."
@@ -370,6 +411,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--offline", action="store_true", help="Force deterministic offline mode.")
     p.add_argument("--online", action="store_true", help="Use optional external AI provider with offline fallback.")
     p.add_argument("--local-voice", action="store_true", help="Use local Faster-Whisper only for voice messages; no external provider requests.")
+    p.add_argument("--local-multimodal", action="store_true", help="Use local OCR/QR for images and local Faster-Whisper for voice; no external provider requests.")
     p.add_argument("--cache-dir", default="code/.shieldrouter_cache")
     p.add_argument("--trace-errors", action="store_true")
     p.set_defaults(func=cmd_run)
@@ -383,6 +425,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--offline", action="store_true")
     p.add_argument("--online", action="store_true")
     p.add_argument("--local-voice", action="store_true")
+    p.add_argument("--local-multimodal", action="store_true")
     p.add_argument("--cache-dir", default="code/.shieldrouter_cache")
     p.set_defaults(func=cmd_trace)
     p = sub.add_parser("smoke-online")
@@ -393,6 +436,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("evaluate-sample")
     p.add_argument("--dataset", required=True)
     p.add_argument("--local-voice", action="store_true")
+    p.add_argument("--local-multimodal", action="store_true")
     p.add_argument("--cache-dir", default="code/.shieldrouter_cache")
     p.add_argument("--report")
     p.add_argument("--errors")
