@@ -31,10 +31,21 @@ If `python` is not on PATH, use any Python 3.12-compatible interpreter. The offl
 ```powershell
 python code/main.py validate-input --dataset dataset
 python code/main.py run --dataset dataset --output output.csv --offline
+python code/main.py run --dataset dataset --output code/evaluation/baselines/local_voice_tuned.csv --local-voice --cache-dir code/.shieldrouter_cache
 python code/main.py validate-output --dataset dataset --output output.csv
 python code/main.py trace --dataset dataset --message-id msg_023 --offline
+python code/main.py evaluate-sample --dataset dataset --report code/evaluation/sample_eval_tuned.json --errors code/evaluation/sample_error_analysis.csv
 python -m pytest code/tests -q
 ```
+
+Optional hybrid smoke tests require `AI_PROVIDER=openrouter` and `OPENROUTER_API_KEY`. The API key is read from the environment or `.env`; it is never printed. OpenRouter calls use the OpenAI-compatible `https://openrouter.ai/api/v1` endpoint, strict structured JSON schema output where supported, provider parameter enforcement, `provider.data_collection=deny`, a default 35-request run cap, one retry for HTTP 429/5xx, and no retry for HTTP 400/401/402/403/404.
+
+```powershell
+python code/main.py smoke-online --dataset dataset --cache-dir code/.shieldrouter_cache
+python code/main.py run --dataset dataset --output code/evaluation/baselines/hybrid_openrouter.csv --online --cache-dir code/.shieldrouter_cache
+```
+
+The online path preserves deterministic offline fallback. Do not run the full dataset online until the smoke test confirms one text request, one real image request, one local voice transcription, structured validation, actual returned model reporting, and cache reruns with zero new OpenRouter requests.
 
 ## Input/Output Contract
 
@@ -61,11 +72,27 @@ Allowed actions are `notify`, `digest`, and `mute`. Allowed message types are `p
 
 The current baseline is fully offline and deterministic. It handles text, image references, and voice-note references as local attachments, validates referenced media paths, and marks per-row media issues conservatively without dropping rows. It does not perform OCR or transcription yet.
 
+## Optional Hybrid Capabilities
+
+The code includes a provider abstraction for external structured AI. The OpenRouter provider sends advisory semantic-enrichment requests only for selected messages: all image rows, at most 12 prioritized ambiguous/risky text rows, and ambiguous voice transcripts when budget remains. The model returns facts only; deterministic ShieldRouter safety, synthesis, resolver, confidence, evidence, and output validation still own the final `notify`, `digest`, or `mute` decision.
+
+Voice notes are transcribed locally with `faster-whisper` using:
+
+```text
+LOCAL_WHISPER_MODEL=small
+LOCAL_WHISPER_DEVICE=cpu
+LOCAL_WHISPER_COMPUTE_TYPE=int8
+```
+
+The Whisper model lazy-loads only when a voice note is encountered, caches transcripts by audio SHA-256 and transcription options, preserves the original spoken language, and returns an explicit failure signal without dropping the output row. No OpenRouter transcription model is used.
+
+For zero-network ablations, use `--local-voice` instead of `--online`. This mode does not construct the OpenRouter provider, does not read `OPENROUTER_API_KEY`, sets Whisper loading to local files only, forbids model fallback for that run, and asserts provider request counters stay at zero.
+
 ## Limitations
 
-- Image content is not actually inspected with OCR/vision in this offline baseline.
-- Voice notes are not transcribed in this offline baseline.
-- Contextual synthesis is deterministic rules rather than a restricted model.
+- Image content is not actually inspected unless the optional OpenRouter smoke test succeeds.
+- Voice notes require `faster-whisper` and an available local model download/cache; failures lower confidence but preserve rows.
+- The current validated submission candidate is the tuned offline output because the available API key failed authentication during smoke testing.
 - Confidence is calibrated from internal agreement signals, not learned probabilities.
 
 ## Next Phases
