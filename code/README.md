@@ -26,9 +26,19 @@ python -m venv .venv
 python -m pip install -r code\requirements.txt
 ```
 
-Local image processing requires `rapidocr`, `onnxruntime`, `opencv-python-headless`, and `Pillow`. Local voice transcription requires `faster-whisper` and an already available local model cache.
+Local image processing requires `rapidocr`, `onnxruntime`, `opencv-python-headless`, and `Pillow`. RapidOCR ships the required ONNX model assets with the installed Python package.
 
-For the selected zero-network mode, `LOCAL_WHISPER_LOCAL_FILES_ONLY=1` is enforced and model fallback is disabled. If the Faster-Whisper model is not already available locally, the first selected-mode run reports an explicit media failure instead of downloading during routing. Model download or cache warmup must be handled before a zero-network reproduction run.
+Local voice transcription requires `faster-whisper` and a prepared local Faster-Whisper model cache. For the selected zero-network mode, `LOCAL_WHISPER_LOCAL_FILES_ONLY=1` is enforced and model fallback is disabled. If the Faster-Whisper model is not already available locally, the selected-mode run reports explicit media failures instead of downloading during routing.
+
+Prepare local models once before a zero-network reproduction run:
+
+```powershell
+# Optional: choose a cache outside this repository.
+$env:HF_HOME = "$env:LOCALAPPDATA\ShieldRouter\hf-cache"
+python code/main.py prepare-models
+```
+
+`prepare-models` initializes RapidOCR and downloads/caches the configured Faster-Whisper model, defaulting to `LOCAL_WHISPER_MODEL` or `small`. It does not require an API key, prints model names and cache locations, and refuses to write Hugging Face model files under the repository root.
 
 ## Commands
 

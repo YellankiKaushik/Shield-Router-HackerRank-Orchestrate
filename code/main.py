@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -75,6 +76,43 @@ def cmd_validate_output(args: argparse.Namespace) -> int:
             print(f"- {error}")
         return 1
     print(f"OUTPUT VALIDATION OK: {len(rows)} rows")
+    return 0
+
+
+def cmd_prepare_models(args: argparse.Namespace) -> int:
+    config = WhisperConfig.from_env()
+    model_name = args.whisper_model or config.model
+    hf_home, hf_hub_cache = _huggingface_cache_locations()
+    repo_root = ROOT.parent.resolve()
+    if _path_is_inside(hf_hub_cache, repo_root):
+        print(f"ERROR: Hugging Face cache is inside the repository: {hf_hub_cache}")
+        print("Set HF_HOME or HF_HUB_CACHE to a cache directory outside the repository, then rerun prepare-models.")
+        return 1
+
+    from rapidocr import RapidOCR
+    import rapidocr
+
+    rapidocr_package = Path(rapidocr.__file__).resolve().parent
+    rapidocr_models = rapidocr_package / "models"
+    RapidOCR()
+
+    from faster_whisper import WhisperModel
+
+    WhisperModel(
+        model_name,
+        device=config.device,
+        compute_type=config.compute_type,
+        local_files_only=False,
+    )
+    print("MODEL PREPARATION OK")
+    print(f"RapidOCR package: {rapidocr_package}")
+    print(f"RapidOCR model assets: {rapidocr_models}")
+    print(f"Faster-Whisper model: {model_name}")
+    print(f"Faster-Whisper device: {config.device}")
+    print(f"Faster-Whisper compute_type: {config.compute_type}")
+    print(f"HF_HOME: {hf_home}")
+    print(f"HF_HUB_CACHE: {hf_hub_cache}")
+    print("Selected local runs use local_files_only=True after this preparation.")
     return 0
 
 
@@ -219,8 +257,6 @@ def _assert_zero_provider_requests(summary: dict[str, object]) -> None:
 
 
 def _load_env_file(path: Path) -> None:
-    import os
-
     if not path.exists():
         return
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -232,6 +268,23 @@ def _load_env_file(path: Path) -> None:
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
             os.environ[key] = value
+
+
+def _huggingface_cache_locations() -> tuple[Path, Path]:
+    hf_home = os.environ.get("HF_HOME")
+    if not hf_home:
+        xdg_cache = os.environ.get("XDG_CACHE_HOME")
+        hf_home = str(Path(xdg_cache) / "huggingface") if xdg_cache else str(Path.home() / ".cache" / "huggingface")
+    hf_hub_cache = os.environ.get("HF_HUB_CACHE") or str(Path(hf_home) / "hub")
+    return Path(hf_home).expanduser().resolve(), Path(hf_hub_cache).expanduser().resolve()
+
+
+def _path_is_inside(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 def cmd_evaluate_sample(args: argparse.Namespace) -> int:
@@ -405,6 +458,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("validate-input")
     p.add_argument("--dataset", required=True)
     p.set_defaults(func=cmd_validate_input)
+    p = sub.add_parser("prepare-models")
+    p.add_argument("--whisper-model", help="Faster-Whisper model to download/cache; defaults to LOCAL_WHISPER_MODEL or small.")
+    p.set_defaults(func=cmd_prepare_models)
     p = sub.add_parser("run")
     p.add_argument("--dataset", required=True)
     p.add_argument("--output", required=True)
