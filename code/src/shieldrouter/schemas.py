@@ -132,6 +132,11 @@ DATASET_HEADERS: dict[str, list[str]] = {
 }
 
 OUTPUT_COLUMNS = DATASET_HEADERS["output.csv"]
+ROUTING_TABLES = [
+    name
+    for name in DATASET_HEADERS
+    if name not in {"sample_messages.csv", "output.csv"}
+]
 ALLOWED_ACTIONS = {"notify", "digest", "mute"}
 ALLOWED_MESSAGE_TYPES = {
     "personal",
@@ -207,6 +212,7 @@ class DecisionTrace:
     features: BehaviorFeatures
     synthesis: Synthesis
     errors: list[str] = field(default_factory=list)
+    media_facts: Any | None = None
 
     def to_output_row(self) -> dict[str, Any]:
         evidence = ";".join(self.evidence_message_ids) if self.evidence_message_ids else "none"
