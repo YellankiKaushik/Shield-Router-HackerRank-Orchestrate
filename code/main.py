@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -13,8 +14,14 @@ if str(SRC) not in sys.path:
 from shieldrouter.indexes import build_indexes
 from shieldrouter.io import DatasetError, load_dataset, read_csv, validate_dataset
 from shieldrouter.orchestrator import process_message, run, summarize
+from shieldrouter.provider import LocalVoiceProvider, OpenRouterProvider, ProviderError, WhisperConfig
 from shieldrouter.schemas import OUTPUT_COLUMNS
 from shieldrouter.validate import validate_output_rows
+
+EVAL_DIR = ROOT / "evaluation"
+if str(EVAL_DIR) not in sys.path:
+    sys.path.insert(0, str(EVAL_DIR))
+from evaluate import classification_metrics, confidence_stats, confusion, macro_f1
 
 
 def cmd_validate_input(args: argparse.Namespace) -> int:
@@ -31,7 +38,14 @@ def cmd_validate_input(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    traces, summary = run(Path(args.dataset), Path(args.output))
+    if args.online and getattr(args, "local_voice", False):
+        raise DatasetError("--online and --local-voice are mutually exclusive")
+    provider = make_provider(args)
+    started = time.perf_counter()
+    traces, summary = run(Path(args.dataset), Path(args.output), provider=provider, online=args.online, local_voice=getattr(args, "local_voice", False))
+    summary["runtime_seconds"] = round(time.perf_counter() - started, 4)
+    if getattr(args, "local_voice", False):
+        _assert_zero_provider_requests(summary)
     print("RUN OK")
     print_summary(summary)
     if args.trace_errors:
@@ -63,7 +77,8 @@ def cmd_trace(args: argparse.Namespace) -> int:
     if row is None:
         print(f"Unknown message_id: {args.message_id}")
         return 1
-    trace = process_message(row, idx)
+    provider = make_provider(args)
+    trace = process_message(row, idx, provider=provider, online=args.online or getattr(args, "local_voice", False), enrich_external=False)
     payload = {
         "output": trace.to_output_row(),
         "safety": {
@@ -79,6 +94,252 @@ def cmd_trace(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_smoke_online(args: argparse.Namespace) -> int:
+    provider = make_provider(args, require_online=True)
+    dataset = Path(args.dataset)
+    tables = load_dataset(dataset)
+    idx = build_indexes(dataset, tables)
+    selected = []
+    cases = [
+        ("text", lambda r: not r.get("media_type"), True),
+        ("image", lambda r: r.get("media_type") == "image", True),
+        ("voice", lambda r: r.get("media_type") == "voice", False),
+    ]
+    for label, predicate, enrich in cases:
+        row = next((r for r in tables["messages.csv"] if predicate(r)), None)
+        if row is None:
+            print(f"SMOKE FAILED: no {label} message found")
+            return 1
+        started = __import__("time").perf_counter()
+        before = provider.stats.request_count
+        trace = process_message(row, idx, provider=provider, online=True, enrich_external=enrich)
+        latency = __import__("time").perf_counter() - started
+        selected.append(
+            {
+                "kind": label,
+                "message_id": trace.message_id,
+                "latency_seconds": round(latency, 4),
+                "new_openrouter_requests": provider.stats.request_count - before,
+                "cache": provider.stats.summary(),
+                "final_decision": trace.to_output_row(),
+                "safety": {
+                    "verdict": trace.safety.verdict,
+                    "risk_level": trace.safety.risk_level,
+                    "signals": list(trace.safety.signals),
+                },
+                "synthesis": trace.synthesis.__dict__,
+                "errors": trace.errors,
+            }
+        )
+        if label in {"text", "image"} and trace.errors:
+            print(json.dumps({"smoke_results": selected, "provider": provider.stats.summary()}, indent=2, sort_keys=True, default=str))
+            print(f"SMOKE FAILED: {label} structured enrichment fell back")
+            return 1
+    for label, predicate, enrich in cases[:2]:
+        row = next(r for r in tables["messages.csv"] if predicate(r))
+        before = provider.stats.request_count
+        before_cache = provider.stats.cache_hits
+        trace = process_message(row, idx, provider=provider, online=True, enrich_external=enrich)
+        selected.append(
+            {
+                "kind": f"{label}_cache_rerun",
+                "message_id": trace.message_id,
+                "new_openrouter_requests": provider.stats.request_count - before,
+                "new_cache_hits": provider.stats.cache_hits - before_cache,
+                "errors": trace.errors,
+            }
+        )
+        if provider.stats.request_count != before or provider.stats.cache_hits == before_cache:
+            print(json.dumps({"smoke_results": selected, "provider": provider.stats.summary()}, indent=2, sort_keys=True, default=str))
+            print(f"SMOKE FAILED: {label} cache rerun consumed a request")
+            return 1
+    print(json.dumps({"smoke_results": selected, "provider": provider.stats.summary()}, indent=2, sort_keys=True, default=str))
+    return 0
+
+
+def make_provider(args: argparse.Namespace, require_online: bool = False):
+    if getattr(args, "local_voice", False):
+        config = WhisperConfig.from_env()
+        config = WhisperConfig(
+            model=config.model,
+            device=config.device,
+            compute_type=config.compute_type,
+            local_files_only=True,
+            allow_model_fallback=False,
+        )
+        return LocalVoiceProvider(cache_dir=Path(getattr(args, "cache_dir", "code/.shieldrouter_cache")), config=config)
+    online = getattr(args, "online", False) or require_online
+    if not online:
+        return None
+    _load_env_file(Path("code/.env"))
+    _load_env_file(Path(".env"))
+    provider_name = __import__("os").environ.get("AI_PROVIDER", "openrouter").casefold()
+    if provider_name != "openrouter":
+        raise DatasetError(f"Unsupported AI_PROVIDER={provider_name}; set AI_PROVIDER=openrouter for online mode")
+    try:
+        return OpenRouterProvider(cache_dir=Path(getattr(args, "cache_dir", "code/.shieldrouter_cache")))
+    except ProviderError as exc:
+        if require_online:
+            raise DatasetError(str(exc))
+        print(f"ONLINE PROVIDER UNAVAILABLE: {exc}; using offline fallback")
+        return None
+
+
+def _assert_zero_provider_requests(summary: dict[str, object]) -> None:
+    provider = summary.get("provider")
+    if not isinstance(provider, dict):
+        raise DatasetError("Local voice mode expected provider stats")
+    nonzero = {
+        key: provider.get(key)
+        for key in ("request_count", "provider_call_count", "media_call_count", "retry_count")
+        if int(provider.get(key, 0) or 0) != 0
+    }
+    if nonzero:
+        raise DatasetError(f"Local voice mode made forbidden provider requests: {nonzero}")
+
+
+def _load_env_file(path: Path) -> None:
+    import os
+
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def cmd_evaluate_sample(args: argparse.Namespace) -> int:
+    import csv
+
+    dataset = Path(args.dataset)
+    tables = load_dataset(dataset)
+    idx = build_indexes(dataset, tables)
+    provider = make_provider(args) if getattr(args, "local_voice", False) else None
+    traces = []
+    for sample in tables["sample_messages.csv"]:
+        incoming = {k: sample[k] for k in tables["messages.csv"][0].keys()}
+        traces.append(process_message(incoming, idx, provider=provider, online=getattr(args, "local_voice", False), enrich_external=False))
+    pred_rows = [t.to_output_row() for t in traces]
+    expected_actions = [r["action"] for r in tables["sample_messages.csv"]]
+    predicted_actions = [r["action"] for r in pred_rows]
+    expected_types = [r["message_type"] for r in tables["sample_messages.csv"]]
+    predicted_types = [r["message_type"] for r in pred_rows]
+    action_classes = ["notify", "digest", "mute"]
+    type_classes = sorted(set(expected_types) | set(predicted_types))
+    action_metrics = classification_metrics(expected_actions, predicted_actions, action_classes)
+    type_metrics = classification_metrics(expected_types, predicted_types, type_classes)
+    report = {
+        "sample_rows": len(pred_rows),
+        "action_accuracy": round(sum(e == p for e, p in zip(expected_actions, predicted_actions)) / len(pred_rows), 4),
+        "action_metrics": action_metrics,
+        "action_macro_f1": macro_f1(action_metrics),
+        "message_type_accuracy": round(sum(e == p for e, p in zip(expected_types, predicted_types)) / len(pred_rows), 4),
+        "message_type_metrics": type_metrics,
+        "message_type_macro_f1": macro_f1(type_metrics),
+        "action_confusion": confusion(expected_actions, predicted_actions),
+        "message_type_confusion": confusion(expected_types, predicted_types),
+        "evidence_usage_rate": round(sum(1 for r in pred_rows if r["evidence_message_ids"] != "none") / len(pred_rows), 4),
+        "confidence": confidence_stats(pred_rows),
+        "false_positive_scams": [
+            r["message_id"]
+            for r, p in zip(tables["sample_messages.csv"], pred_rows)
+            if p["message_type"] == "scam" and r["message_type"] != "scam"
+        ],
+        "false_negative_urgent_notifications": [
+            r["message_id"]
+            for r, p in zip(tables["sample_messages.csv"], pred_rows)
+            if r["action"] == "notify" and p["action"] != "notify"
+        ],
+    }
+    notify_metrics = action_metrics.get("notify", {})
+    report["urgent_notify_precision"] = notify_metrics.get("precision", 0.0)
+    report["urgent_notify_recall"] = notify_metrics.get("recall", 0.0)
+    report["voice_message_correctness"] = _voice_correctness(tables["sample_messages.csv"], pred_rows)
+    if provider is not None:
+        provider_summary = provider.stats.summary()
+        _assert_zero_provider_requests({"provider": provider_summary})
+        report["provider"] = provider_summary
+    history_ids = {r["message_id"] for r in tables["message_history.csv"]}
+    report["evidence_validity"] = "passed" if all(
+        p["evidence_message_ids"] == "none" or all(eid in history_ids for eid in p["evidence_message_ids"].split(";"))
+        for p in pred_rows
+    ) else "failed"
+    report["reason_consistency"] = "passed" if all(p["reason"].strip() and p["message_type"] in p["reason"] or p["reason"].strip() for p in pred_rows) else "failed"
+
+    errors = []
+    for sample, pred, trace in zip(tables["sample_messages.csv"], pred_rows, traces):
+        if sample["action"] != pred["action"] or sample["message_type"] != pred["message_type"]:
+            errors.append(
+                {
+                    "message_id": sample["message_id"],
+                    "expected_action": sample["action"],
+                    "predicted_action": pred["action"],
+                    "expected_message_type": sample["message_type"],
+                    "predicted_message_type": pred["message_type"],
+                    "relevant_context": "; ".join(trace.synthesis.facts) or "limited deterministic context",
+                    "responsible_rule_or_feature": f"safety={trace.safety.verdict}; urgency={trace.synthesis.urgency_level}; fatigue={trace.features.fatigue:.2f}",
+                    "generalizable_correction": _suggest_correction(sample, pred),
+                }
+            )
+    if args.report:
+        report_path = Path(args.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    if args.errors:
+        error_path = Path(args.errors)
+        error_path.parent.mkdir(parents=True, exist_ok=True)
+        with error_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=[
+                "message_id",
+                "expected_action",
+                "predicted_action",
+                "expected_message_type",
+                "predicted_message_type",
+                "relevant_context",
+                "responsible_rule_or_feature",
+                "generalizable_correction",
+            ], lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(errors)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0
+
+
+def _voice_correctness(sample_rows: list[dict[str, str]], pred_rows: list[dict[str, str]]) -> dict[str, object]:
+    pred_by_id = {r["message_id"]: r for r in pred_rows}
+    voice_rows = [r for r in sample_rows if r.get("media_type") == "voice" and r["message_id"] in pred_by_id]
+    if not voice_rows:
+        return {"voice_sample_rows": 0, "action_accuracy": None, "message_type_accuracy": None, "correct_ids": [], "missed_ids": []}
+    correct_ids = [
+        r["message_id"]
+        for r in voice_rows
+        if pred_by_id[r["message_id"]]["action"] == r["action"] and pred_by_id[r["message_id"]]["message_type"] == r["message_type"]
+    ]
+    return {
+        "voice_sample_rows": len(voice_rows),
+        "action_accuracy": round(sum(pred_by_id[r["message_id"]]["action"] == r["action"] for r in voice_rows) / len(voice_rows), 4),
+        "message_type_accuracy": round(sum(pred_by_id[r["message_id"]]["message_type"] == r["message_type"] for r in voice_rows) / len(voice_rows), 4),
+        "correct_ids": correct_ids,
+        "missed_ids": [r["message_id"] for r in voice_rows if r["message_id"] not in correct_ids],
+    }
+
+
+def _suggest_correction(expected: dict[str, str], predicted: dict[str, str]) -> str:
+    if expected["action"] == "notify" and predicted["action"] != "notify":
+        return "Improve trusted urgency, direct request, media transcript, or transaction-update detection."
+    if expected["action"] == "mute" and predicted["action"] != "mute":
+        return "Strengthen opt-out, dismissal, forwarding, or safety-risk precedence."
+    if expected["message_type"] != predicted["message_type"]:
+        return "Refine deterministic official message-type classification."
+    return "No correction needed."
+
+
 def print_summary(summary: dict[str, object]) -> None:
     for key in [
         "rows",
@@ -90,8 +351,11 @@ def print_summary(summary: dict[str, object]) -> None:
         "confidence_max",
         "evidence_usage_count",
         "fallback_error_count",
+        "provider",
+        "runtime_seconds",
     ]:
-        print(f"{key}: {summary[key]}")
+        if key in summary:
+            print(f"{key}: {summary[key]}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -103,7 +367,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("run")
     p.add_argument("--dataset", required=True)
     p.add_argument("--output", required=True)
-    p.add_argument("--offline", action="store_true", help="Accepted for evaluator compatibility; offline is the only implemented mode.")
+    p.add_argument("--offline", action="store_true", help="Force deterministic offline mode.")
+    p.add_argument("--online", action="store_true", help="Use optional external AI provider with offline fallback.")
+    p.add_argument("--local-voice", action="store_true", help="Use local Faster-Whisper only for voice messages; no external provider requests.")
+    p.add_argument("--cache-dir", default="code/.shieldrouter_cache")
     p.add_argument("--trace-errors", action="store_true")
     p.set_defaults(func=cmd_run)
     p = sub.add_parser("validate-output")
@@ -114,7 +381,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dataset", required=True)
     p.add_argument("--message-id", required=True)
     p.add_argument("--offline", action="store_true")
+    p.add_argument("--online", action="store_true")
+    p.add_argument("--local-voice", action="store_true")
+    p.add_argument("--cache-dir", default="code/.shieldrouter_cache")
     p.set_defaults(func=cmd_trace)
+    p = sub.add_parser("smoke-online")
+    p.add_argument("--dataset", required=True)
+    p.add_argument("--online", action="store_true", default=True)
+    p.add_argument("--cache-dir", default="code/.shieldrouter_cache")
+    p.set_defaults(func=cmd_smoke_online)
+    p = sub.add_parser("evaluate-sample")
+    p.add_argument("--dataset", required=True)
+    p.add_argument("--local-voice", action="store_true")
+    p.add_argument("--cache-dir", default="code/.shieldrouter_cache")
+    p.add_argument("--report")
+    p.add_argument("--errors")
+    p.set_defaults(func=cmd_evaluate_sample)
     return parser
 
 
