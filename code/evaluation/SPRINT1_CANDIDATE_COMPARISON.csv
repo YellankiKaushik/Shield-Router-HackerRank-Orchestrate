@@ -1,0 +1,3 @@
+message_id,old_action,old_message_type,candidate_action,candidate_message_type,novelty,transaction_relationship,forwarding_fatigue,exception_result,safety_signals,evidence,reason_for_change,change_supported
+msg_043,digest,forward,mute,forward,0.8186,false,0.3000,not_required_non_muted_group,chain_or_excessive_forwarding,message_0067;message_0097;message_0001;message_0129;message_0141,bounded forwarding fatigue reinforces existing chain or risk signals,yes
+msg_056,notify,urgent,digest,urgent,0.7140,false,0.0000,muted_group_without_trusted_context,none,message_0226;message_0167;message_0359;message_0054;message_0225,muted-group urgency now requires explicit trusted exception,yes

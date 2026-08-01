@@ -3,6 +3,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from shieldrouter.exception_check import check_exception
 from shieldrouter.resolver import resolve
 from shieldrouter.schemas import BehaviorFeatures, SafetyAssessment, Synthesis
 
@@ -23,10 +24,14 @@ def test_high_risk_mutes_even_when_trusted():
 
 
 def test_muted_group_trusted_urgent_direct_mention_notifies():
+    safety = SafetyAssessment("safe", "none")
+    features = BehaviorFeatures(trust=0.8, group_muted=True, in_quiet_hours=True, urgency=0.8, direct_mention=True)
+    synthesis = synth(urgency_level="high", direct_mention=True, message_type="urgent", preliminary_action="notify")
     action, msg_type, _ = resolve(
-        SafetyAssessment("safe", "none"),
-        BehaviorFeatures(trust=0.8, group_muted=True, in_quiet_hours=True, urgency=0.8, direct_mention=True),
-        synth(urgency_level="high", direct_mention=True, message_type="urgent", preliminary_action="notify"),
+        safety,
+        features,
+        synthesis,
+        check_exception(safety, features, synthesis),
     )
     assert (action, msg_type) == ("notify", "urgent")
 
