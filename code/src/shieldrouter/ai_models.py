@@ -42,6 +42,8 @@ class MediaFacts(StrictModel):
     status: Literal["not_applicable", "ok", "failed"] = "not_applicable"
     visible_text: str = ""
     transcript: str = ""
+    detected_tone: Literal["urgent", "neutral", "calm", "unknown"] = "unknown"
+    detected_pressure_language: bool = False
     scene_or_poster_facts: list[str] = Field(default_factory=list)
     qr_code_present: bool = False
     price_or_payment_information: list[str] = Field(default_factory=list)

@@ -104,11 +104,19 @@ def request_advisory(provider, row: dict[str, str], business: dict[str, str] | N
 
 
 def media_from_advisory(advisory: AdvisoryModelOutput, media_type: str, transcript: str = "") -> MediaFacts:
+    detected_tone = "unknown"
+    detected_pressure_language = False
+    if media_type == "voice":
+        from .media import derive_voice_metadata
+
+        detected_tone, detected_pressure_language = derive_voice_metadata(transcript)
     return MediaFacts(
         media_type=media_type if media_type in {"image", "voice"} else "none",
         status="ok",
         visible_text=advisory.visible_image_text,
         transcript=transcript,
+        detected_tone=detected_tone,
+        detected_pressure_language=detected_pressure_language,
         scene_or_poster_facts=advisory.image_scene_or_poster_facts,
         qr_code_present=advisory.qr_presence,
         price_or_payment_information=advisory.prices_payments,

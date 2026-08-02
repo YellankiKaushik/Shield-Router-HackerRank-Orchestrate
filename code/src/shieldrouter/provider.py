@@ -16,6 +16,7 @@ from typing import Any, Protocol
 
 PROMPT_VERSION = "openrouter_advisory_v1"
 SCHEMA_VERSION = "advisory_schema_v1"
+VOICE_METADATA_SCHEMA_VERSION = "voice_tone_pressure_v1"
 NON_RETRYABLE_HTTP = {400, 401, 402, 403, 404}
 TRANSIENT_HTTP = {429, 500, 502, 503, 504}
 
@@ -220,6 +221,7 @@ class LocalWhisperTranscriber:
             "model": model_name,
             "device": self.config.device,
             "compute_type": self.config.compute_type,
+            "voice_metadata_schema": VOICE_METADATA_SCHEMA_VERSION,
         }
         digest = hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()
         return self.cache_dir / f"{digest}.json"
@@ -272,7 +274,10 @@ class LocalWhisperTranscriber:
         segments, _info = self._model.transcribe(str(audio_path))
         transcript = " ".join(segment.text.strip() for segment in segments if getattr(segment, "text", "").strip()).strip()
         self.stats.whisper_model_used = model_name
-        cache_path.write_text(json.dumps({"text": transcript, "model": model_name}, ensure_ascii=False, indent=2), encoding="utf-8")
+        cache_path.write_text(
+            json.dumps({"text": transcript, "model": model_name, "voice_metadata_schema": VOICE_METADATA_SCHEMA_VERSION}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
         return transcript
 
 
