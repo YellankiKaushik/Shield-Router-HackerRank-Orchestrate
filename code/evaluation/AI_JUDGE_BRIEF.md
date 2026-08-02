@@ -34,7 +34,7 @@ Selected local multimodal mode requires no external API. If media fails validati
 
 ## Why was local multimodal selected over OpenRouter hybrid?
 
-Local multimodal produced 110 valid rows, passed 127 tests, extracted all 15 images, processed all 8 voice notes, made zero provider requests, reran byte-identically, and improved labeled sample metrics over offline and local-voice ablations. OpenRouter remains optional but is not needed for the selected zero-network candidate.
+Local multimodal produced 110 valid rows, passed 129 tests, extracted all 15 images, processed all 8 voice notes, made zero provider requests, reran byte-identically across process hash seeds, and improved labeled sample metrics over offline and local-voice ablations. OpenRouter remains optional but is not needed for the selected zero-network candidate.
 
 ## What are the main limitations?
 
@@ -54,13 +54,14 @@ Final alignment features:
 - Muted-group/direct-mention exception checking is explicit. Safe trusted critical direct mentions can notify even from muted groups or quiet-hour contexts; `high_risk` always blocks.
 - Voice tone is transcript-derived linguistic metadata only: `urgent`, `neutral`, `calm`, or `unknown`, plus a pressure-language flag. There is no acoustic emotion, pitch, stress, speaker, or prosody analysis.
 - Reason consistency validation checks final action/type/reason/safety/resolver/evidence together and produced zero unresolved contradictions across the 110-row final candidate.
+- Evidence retrieval uses deterministic sorted-token scoring and a materiality margin for low-similarity relational evidence, preventing weak ASR-tokenization variants from changing selected evidence.
 - `--summary-json` writes operational metrics atomically without raw message text, OCR text, voice transcripts, secrets, or absolute private paths.
 
 Validation snapshot:
 
-- Full suite: `127 passed`.
+- Full suite: `129 passed`.
 - Final candidate: `code/evaluation/baselines/final_design_aligned.csv`.
-- Final root output SHA: `F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6`.
+- Final root output SHA: `CD8B26364C30C86D8E25E27C9E2A2D2E9624F7159F0D1236540AF17E0C5DE55E`.
 - Local multimodal media: 15/15 images succeeded, 8/8 voice notes succeeded.
 - Provider requests in selected mode: zero.
 - Labeled sample metrics: 1.0 action accuracy, 1.0 action macro F1, 1.0 type accuracy, 1.0 type macro F1.

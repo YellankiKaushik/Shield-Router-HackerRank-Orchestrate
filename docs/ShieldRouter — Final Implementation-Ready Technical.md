@@ -10,7 +10,7 @@
 **Target repository branch:** `feat/shieldrouter`
 **Validated baseline tag:** `local-multimodal-valid-v2`
 **Validated baseline commit:** `ac5817963e28c5630ed63154d97fd276036dfda2`
-**Protected output SHA-256:** `A819A2AF4F32687419F342E18D5320C0C3EBB41A2F4385430D153E5842E4686D`
+**Protected output SHA-256:** `CD8B26364C30C86D8E25E27C9E2A2D2E9624F7159F0D1236540AF17E0C5DE55E`
 
 > **Positioning:** ShieldRouter combines actual message content, recipient relationships and behavior, and non-negotiable safety policy. It can personalize away noise. It can never personalize away credential-theft risk.
 
@@ -1311,7 +1311,7 @@ submission ZIPs unless intentionally required
 # 33. Development setup
 
 ```powershell
-cd "C:\Users\YellankiKaushik\Desktop\Projects\HACKER RANK\HackerRank - Coding Files"
+cd "<path-to-shieldrouter-repo>"
 
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -1898,4 +1898,3 @@ ShieldRouter is complete only when:
 - `[WEB-OPENCV]` OpenCV QRCodeDetector documentation: https://docs.opencv.org/5.0/
 - `[WEB-FW]` Faster-Whisper official repository: https://github.com/SYSTRAN/faster-whisper
 - `[WEB-OR]` OpenRouter structured output, provider routing, privacy, and free-router documentation: https://openrouter.ai/docs/
-

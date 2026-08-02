@@ -48,9 +48,10 @@ Post-Sprint 2 traceability status:
 
 Updated validation evidence:
 
-- Full test suite: `127 passed`.
+- Full test suite: `129 passed`.
 - Final candidate output: `code/evaluation/baselines/final_design_aligned.csv`.
-- Final root output SHA: `F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6`.
+- Final root output SHA: `CD8B26364C30C86D8E25E27C9E2A2D2E9624F7159F0D1236540AF17E0C5DE55E`.
+- Reproducibility fix: retrieval uses sorted token math, `math.fsum`, quantized comparisons, and a `0.13` materiality threshold for low-similarity relational evidence. Voice transcripts canonicalize `check out` to `checkout` before routing.
 - Final local multimodal summary: zero provider requests, 15 image successes, 8 voice successes.
 
 ## Pipeline Stages

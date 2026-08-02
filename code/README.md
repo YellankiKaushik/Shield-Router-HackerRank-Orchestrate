@@ -5,6 +5,7 @@ ShieldRouter is a deterministic Python CLI for the HackerRank Orchestrate August
 ## Sprint 2 final-alignment notes
 
 - Selected candidate: `code/evaluation/baselines/final_design_aligned.csv`.
+- Reproducibility fix: evidence retrieval now uses sorted token accumulation, `math.fsum`, four-decimal quantized comparisons, and a `0.13` relational-useful evidence threshold. Voice ASR text canonicalizes the common `check out`/`checkout` split before routing.
 - Structured run summaries are available with `--summary-json <path>`. The summary includes counts, confidence ranges, media/cache/provider statistics, runtime, output SHA-256, model/cache metadata, timestamp, and commit when available. It intentionally excludes raw message text, OCR text, voice transcripts, API keys, credentials, and absolute private paths.
 - Voice metadata is transcript-derived only: `detected_tone` is `urgent`, `neutral`, `calm`, or `unknown`, and `detected_pressure_language` marks coercive or manipulation wording. ShieldRouter does not perform acoustic emotion recognition, pitch analysis, stress detection, speaker identity, or prosody analysis.
 - BehaviorGraph now exposes novelty, highest same-user history similarity, transaction relationship/strength, bounded forwarding fatigue, and selected evidence engagement counts in trace output.
@@ -101,7 +102,7 @@ python code/main.py evaluate-sample --dataset dataset --local-multimodal --cache
 python -m pytest code/tests -q -p no:cacheprovider --basetemp=.tmp/pytest
 ```
 
-Current test count: 127 passing.
+Current test count: 129 passing.
 
 ## Output Contract
 
@@ -123,7 +124,7 @@ Allowed actions are `notify`, `digest`, and `mute`. Allowed message types are `p
 - OpenCV QR detection runs locally; no QR destinations are opened.
 - Local Faster-Whisper processes all 8 voice notes from cache in the validated run.
 - Provider request count is exactly zero in `--local-voice` and `--local-multimodal`.
-- Local multimodal deterministic rerun SHA-256: `F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6`.
+- Local multimodal deterministic rerun SHA-256: `CD8B26364C30C86D8E25E27C9E2A2D2E9624F7159F0D1236540AF17E0C5DE55E`.
 - The final code package is expected to contain code and documentation; the evaluation dataset is provided externally by the challenge environment.
 
 ## Reports

@@ -1,6 +1,6 @@
 # Final Test Coverage Matrix
 
-Last full run: `127 passed`.
+Last full run: `129 passed`.
 
 | Category | Implemented tests | Files | Cases covered | Result | Remaining limitation |
 |---|---|---|---|---|---|

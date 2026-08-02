@@ -7,7 +7,7 @@ msg_040,mute,greeting,repeated forwarding pattern; forwarded greeting pattern; r
 msg_075,digest,event,safe non-urgent content; message describes an operational update or event; similar prior message message_0206,0.80,message_0206;message_0205
 msg_005,digest,unknown,ambiguous content; image attachment is available; low-information image; OCR found little or no visible text; similar prior message message_0065,0.66,message_0065;message_0049;message_0382;message_0231;message_0114
 msg_104,digest,unknown,ambiguous content; unfamiliar personal sender without urgency; similar prior message message_0224,0.68,message_0224;message_0383;message_0232;message_0050
-msg_069,mute,greeting,repeated forwarding pattern; forwarded greeting pattern; recipient has muted this group; similar prior message message_0177,0.62,message_0177;message_0193;message_0042;message_0080
+msg_069,mute,greeting,repeated forwarding pattern; forwarded greeting pattern; recipient has muted this group; similar prior message message_0177,0.62,message_0177;message_0193;message_0042;message_0080;message_0178
 msg_107,mute,scam,"Safety override; prompt injection text, credential or login code request; safety rules found risky content; similar prior message message_0056",0.91,message_0056;message_0235;message_0195;message_0213;message_0369
 msg_070,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; message arrived during quiet hours; similar prior message message_0369",0.95,message_0369;message_0195;message_0213;message_0085;message_0199
 msg_003,notify,business_update,trusted time-critical update; verified business update or account notice; similar prior message message_0031,0.84,message_0031;message_0400;message_0061;message_0267;message_0062
@@ -15,8 +15,8 @@ msg_099,digest,personal,safe non-urgent content; message is from a personal chat
 msg_008,digest,business_update,safe non-urgent content; message comes from a business account; message arrived during quiet hours; similar prior message message_0296,0.73,message_0296;message_0072;message_0071
 msg_092,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0346,0.57,message_0346
 msg_060,notify,event,useful urgent content; message describes an operational update or event; image attachment is available; image layout appears to be document; similar prior message message_0284,0.68,message_0284;message_0176;message_0404;message_0175;message_0375
-msg_004,notify,event,trusted time-critical update; business appointment or scheduled update; similar prior message message_0005,0.84,message_0005;message_0245;message_0246;message_0064
-msg_030,mute,promotion,severe notification fatigue; message contains promotional language; image attachment is available; recipient has muted this group; similar prior message message_0115,0.69,message_0115;message_0335;message_0050
+msg_004,notify,event,trusted time-critical update; business appointment or scheduled update; similar prior message message_0005,0.84,message_0005;message_0245;message_0246;message_0064;message_0063
+msg_030,mute,promotion,severe notification fatigue; message contains promotional language; image attachment is available; recipient has muted this group; similar prior message message_0115,0.69,message_0115;message_0335;message_0050;message_0383
 msg_045,digest,unknown,ambiguous content; similar prior message message_0146,0.66,message_0146
 msg_052,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0208",0.84,message_0208;message_0207;message_0159;message_0160
 msg_009,digest,unknown,ambiguous content; recipient has muted this group; similar prior message message_0074,0.75,message_0074
@@ -38,7 +38,7 @@ msg_044,mute,scam,"Safety override; credential or login code request, credential
 msg_032,digest,unknown,ambiguous content; similar prior message message_0119,0.69,message_0119;message_0285
 msg_106,digest,personal,safe non-urgent content; message is from a personal chat; similar prior message message_0234,0.71,message_0234;message_0376
 msg_006,mute,scam,"Safety override; urgency pressure, payment or qr pressure; safety rules found risky content; similar prior message message_0067",0.93,message_0067;message_0097;message_0029;message_0044;message_0068
-msg_109,mute,scam,Safety override; payment or qr pressure; safety rules found risky content; similar prior message message_0151,0.95,message_0151;message_0152;message_0237;message_0150
+msg_109,mute,scam,Safety override; payment or qr pressure; safety rules found risky content; similar prior message message_0151,0.95,message_0151;message_0152;message_0237;message_0100;message_0150
 msg_108,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0094",0.85,message_0094;message_0093
 msg_019,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0277,0.61,message_0277
 msg_088,digest,unknown,ambiguous content; voice attachment is available; voice-note attachment is available; recipient has muted this group; similar prior message message_0224,0.79,message_0224;message_0232;message_0383
@@ -54,7 +54,7 @@ msg_017,mute,scam,"Safety override; urgency pressure, payment or qr pressure; sa
 msg_058,mute,forward,severe notification fatigue; message has a forwarding signal; recipient has muted this group; similar prior message message_0040,0.62,message_0040;message_0241;message_0039;message_0078;message_0124
 msg_026,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0032,0.61,message_0032;message_0107
 msg_047,digest,unknown,ambiguous content; similar prior message message_0149,0.66,message_0149;message_0001;message_0151;message_0068;message_0098
-msg_046,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0148",0.93,message_0148
+msg_046,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0148",0.93,message_0148;message_0147
 msg_042,digest,unknown,ambiguous content; similar prior message message_0140,0.68,message_0140;message_0058
 msg_079,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0369,0.69,message_0369
 msg_098,notify,urgent,trusted critical direct mention; urgent direct request or deadline was detected; similar prior message message_0226,0.75,message_0226;message_0359;message_0054;message_0225;message_0167
@@ -62,15 +62,15 @@ msg_037,digest,greeting,safe non-urgent content; message is conversational; simi
 msg_007,digest,unknown,ambiguous content; similar prior message message_0070,0.61,message_0070
 msg_085,digest,scam,suspicious but not decisive; safety rules found risky content; voice-note attachment is available; message arrived during quiet hours; similar prior message message_0221,0.59,message_0221
 msg_001,notify,urgent,useful urgent content; urgent direct request or deadline was detected; similar prior message message_0057,0.65,message_0057;message_0240;message_0139
-msg_021,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0068,0.66,message_0068;message_0098;message_0029;message_0044
+msg_021,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0068,0.66,message_0068;message_0098;message_0029;message_0044;message_0001
 msg_028,mute,promotion,promotion opt-out or repeated dismissal; message contains promotional language; image attachment is available; recipient has opted out or dismissed similar promotions; similar prior message message_0034,0.87,message_0034;message_0112;message_0111
 msg_012,mute,forward,severe notification fatigue; message has a forwarding signal; similar prior message message_0079,0.62,message_0079;message_0247;message_0178;message_0194;message_0177
-msg_064,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; image attachment is available; image layout appears to be document; similar prior message message_",0.95,message_0087;message_0183;message_0201
+msg_064,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; image attachment is available; image layout appears to be document; similar prior message message_",0.95,message_0087;message_0183;message_0201;message_0024
 msg_103,digest,personal,safe non-urgent content; message is from a personal chat; similar prior message message_0065,0.76,message_0065;message_0382;message_0231;message_0049;message_0066
 msg_031,notify,event,useful urgent content; message describes an operational update or event; image attachment is available; image layout appears to be document; similar prior message message_0227,0.67,message_0227;message_0249
 msg_057,digest,unknown,ambiguous content; similar prior message message_0059,0.63,message_0059;message_0169;message_0003;message_0266;message_0041
-msg_087,mute,promotion,severe notification fatigue; message contains promotional language; voice-note attachment is available; recipient has muted this group; similar prior message message_0163,0.72,message_0163
-msg_067,digest,payment,safe non-urgent content; message concerns payment or account activity; similar prior message message_0068,0.75,message_0068;message_0098;message_0271
+msg_087,mute,promotion,severe notification fatigue; message contains promotional language; voice-note attachment is available; recipient has muted this group; similar prior message message_0163,0.72,message_0163;message_0164
+msg_067,digest,payment,safe non-urgent content; message concerns payment or account activity; similar prior message message_0068,0.75,message_0068;message_0098;message_0271;message_0029;message_0044
 msg_039,digest,scam,"urgent but queued by quiet hours, load, or risk; safety rules found risky content; similar prior message message_0364",0.59,message_0364;message_0051;message_0403;message_0255;message_0133
 msg_082,notify,urgent,useful urgent content; urgent direct request or deadline was detected; voice-note attachment is available; similar prior message message_0218,0.72,message_0218;message_0380
 msg_066,mute,promotion,promotion opt-out or repeated dismissal; message contains promotional language; image attachment is available; recipient has opted out or dismissed similar promotions; similar prior message message_0257,0.81,message_0257;message_0402;message_0052
@@ -82,11 +82,11 @@ msg_089,digest,unknown,ambiguous content; unfamiliar personal sender without urg
 msg_053,mute,forward,repeated forwarding pattern; message has a forwarding signal; image attachment is available; image layout appears to be text_poster; similar prior message message_0411,0.61,message_0411;message_0253;message_0161;message_0162
 msg_059,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0053",0.86,message_0053
 msg_024,mute,promotion,promotion opt-out or repeated dismissal; message contains promotional language; recipient has opted out or dismissed similar promotions; similar prior message message_0257,0.79,message_0257;message_0402;message_0104;message_0157;message_0103
-msg_072,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0023",0.91,message_0023;message_0045
+msg_072,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0023",0.91,message_0023;message_0045;message_0085;message_0199;message_0195
 msg_036,digest,spam,suspicious but not decisive; safety rules found risky content; similar prior message message_0283,0.61,message_0283;message_0127
 msg_076,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0208",0.84,message_0208;message_0207;message_0159;message_0160
 msg_055,digest,unknown,ambiguous content; similar prior message message_0166,0.62,message_0166;message_0165
-msg_102,digest,personal,safe non-urgent content; message is from a personal chat; similar prior message message_0230,0.74,message_0230;message_0371;message_0059;message_0169
+msg_102,digest,personal,safe non-urgent content; message is from a personal chat; similar prior message message_0230,0.74,message_0230;message_0371;message_0059;message_0169;message_0060
 msg_080,digest,unknown,ambiguous content; similar prior message message_0130,0.66,message_0130;message_0142;message_0180;message_0190;message_0216
 msg_093,digest,scam,suspicious but not decisive; safety rules found risky content; message arrived during quiet hours; similar prior message message_0347,0.56,message_0347;message_0348;message_0349;message_0398
 msg_034,mute,greeting,repeated forwarding pattern; forwarded greeting pattern; recipient has muted this group; similar prior message message_0013,0.64,message_0013;message_0039;message_0077;message_0123;message_0171
@@ -98,7 +98,7 @@ msg_110,mute,scam,"Safety override; credential or login code request, credential
 msg_095,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0087",0.85,message_0087;message_0183;message_0201;message_0088;message_0184
 msg_074,mute,promotion,severe notification fatigue; message contains promotional language; image attachment is available; recipient has muted this group; similar prior message message_0203,0.66,message_0203;message_0358;message_0223;message_0204;message_0389
 msg_073,mute,forward,severe notification fatigue; message has a forwarding signal; similar prior message message_0147,0.61,message_0147
-msg_054,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0389,0.72,message_0389;message_0203
+msg_054,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0389,0.72,message_0389;message_0163;message_0203
 msg_068,digest,unknown,ambiguous content; similar prior message message_0191,0.67,message_0191
 msg_100,notify,urgent,trusted critical direct mention; urgent direct request or deadline was detected; similar prior message message_0362,0.78,message_0362;message_0228;message_0249;message_0117;message_0055
 msg_062,mute,forward,repeated forwarding pattern; message has a forwarding signal; image attachment is available; message arrived during quiet hours; similar prior message message_0043,0.58,message_0043;message_0410

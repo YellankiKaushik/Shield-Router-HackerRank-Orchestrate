@@ -11,8 +11,9 @@ Selected mode: zero-network local multimodal.
 - Voice attempted/succeeded/failed: 8/8/0.
 - OCR cache hits: 15; transcript cache hits final run: 8; transcript cache hits cached rerun: 8.
 - Provider requests/retries/fallbacks: 0/0/0.
-- Final candidate runtime: 0.2123 seconds; cached deterministic rerun runtime: 0.2093 seconds; fresh voice-metadata-cache run was 31.3057 seconds.
-- Output SHA-256: F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6.
+- Final candidate runtime: 0.2503 seconds cached; fresh-cache reproducibility runs were about 49-50 seconds in the validation environment.
+- Output SHA-256: CD8B26364C30C86D8E25E27C9E2A2D2E9624F7159F0D1236540AF17E0C5DE55E.
+- Reproducibility: repository runs with default hash seed and `PYTHONHASHSEED` values `0`, `1`, `42`, and `12345` were byte-identical.
 
 Cost and cache notes:
 
