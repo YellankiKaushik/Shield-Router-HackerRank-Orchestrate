@@ -19,7 +19,7 @@ def check_exception(safety, features, synthesis) -> ExceptionCheckResult:
     group_muted = bool(features.group_muted)
     direct_mention = bool(features.direct_mention or synthesis.direct_mention)
     trusted_context = bool(
-        features.trust >= 0.55
+        features.trust >= 0.50
         or features.affinity >= 0.75
         or features.relationship_strength >= 0.65
         or (features.transaction_relationship and features.transaction_strength >= 0.35)

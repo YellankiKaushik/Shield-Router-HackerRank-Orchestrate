@@ -43,7 +43,9 @@ def assess_safety(row: dict[str, str], business: dict[str, str] | None = None) -
         signals.append("urgency_pressure")
     if PAYMENT_RE.search(low) and ("qr" in low or "scan" in low or "reattempt fee" in low):
         signals.append("payment_or_qr_pressure")
-    if CHAIN_RE.search(low) or forwarded >= 5:
+    if CHAIN_RE.search(low):
+        signals.append("chain_message_language")
+    if forwarded >= 5:
         signals.append("chain_or_excessive_forwarding")
     if domains:
         official = (business or {}).get("official_domain", "").casefold()

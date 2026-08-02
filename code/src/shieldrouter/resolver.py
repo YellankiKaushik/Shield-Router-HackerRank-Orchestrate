@@ -29,7 +29,13 @@ def resolve(safety, features, synthesis, exception_check=None) -> tuple[str, str
         return "mute", synthesis.message_type, "promotion opt-out or repeated dismissal"
     if features.fatigue >= 0.72 and synthesis.message_type in {"promotion", "forward", "spam", "business_update"}:
         return "mute", synthesis.message_type, "severe notification fatigue"
-    if safety.verdict == "suspicious" and "chain_or_excessive_forwarding" in safety.signals and (features.repeated or features.fatigue >= 0.45 or features.group_muted):
+    forwarding_noise = (
+        "chain_message_language" in safety.signals
+        or features.repeated
+        or features.negative_evidence_count > 0
+        or (features.group_muted and features.fatigue >= 0.45)
+    )
+    if safety.verdict == "suspicious" and "chain_or_excessive_forwarding" in safety.signals and forwarding_noise:
         return "mute", synthesis.message_type if synthesis.message_type != "unknown" else safety.message_type, "repeated forwarding pattern"
     if safety.verdict == "suspicious" and safety.message_type == "spam" and features.fatigue >= 0.65:
         return "mute", "spam", "reported sender and repeated dismissal"

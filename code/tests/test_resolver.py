@@ -61,3 +61,21 @@ def test_critical_trusted_direct_urgency_overrides_quiet_hours():
         synth(urgency_level="high", direct_mention=True, message_type="urgent", preliminary_action="notify"),
     )
     assert action == "notify"
+
+
+def test_excessive_forwarding_without_noise_context_does_not_auto_mute():
+    action, msg_type, _ = resolve(
+        SafetyAssessment("suspicious", "low", ("chain_or_excessive_forwarding",), "forward"),
+        BehaviorFeatures(forwarding_fatigue=0.3, fatigue=0.5, engaged_evidence_count=3),
+        synth(message_type="forward", preliminary_action="digest"),
+    )
+    assert (action, msg_type) == ("digest", "forward")
+
+
+def test_chain_forwarding_with_negative_context_mutes():
+    action, msg_type, _ = resolve(
+        SafetyAssessment("suspicious", "low", ("chain_message_language", "chain_or_excessive_forwarding"), "forward"),
+        BehaviorFeatures(forwarding_fatigue=0.3, fatigue=0.5, negative_evidence_count=1),
+        synth(message_type="forward", preliminary_action="digest"),
+    )
+    assert (action, msg_type) == ("mute", "forward")
