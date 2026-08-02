@@ -1,0 +1,4 @@
+message_id,expected_action,predicted_action,expected_message_type,predicted_message_type,relevant_context,responsible_rule_or_feature,generalizable_correction
+sample_msg_042,notify,digest,urgent,personal,voice attachment is available; voice-note attachment is available,safety=safe; urgency=low; fatigue=0.61,"Improve trusted urgency, direct request, media transcript, or transaction-update detection."
+sample_msg_047,mute,digest,promotion,unknown,message contains promotional language; image attachment is available,safety=safe; urgency=medium; fatigue=0.84,"Strengthen opt-out, dismissal, forwarding, or safety-risk precedence."
+sample_msg_048,digest,digest,business_update,unknown,verified business update or account notice; image attachment is available,safety=safe; urgency=low; fatigue=0.01,Refine deterministic official message-type classification.
