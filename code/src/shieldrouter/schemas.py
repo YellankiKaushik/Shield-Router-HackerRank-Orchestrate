@@ -173,6 +173,8 @@ class BehaviorFeatures:
     transaction_relationship: bool = False
     transaction_strength: float = 0.0
     forwarding_fatigue: float = 0.0
+    negative_evidence_count: int = 0
+    engaged_evidence_count: int = 0
     promotion_opt_out: bool = False
     relationship_strength: float = 0.0
     group_muted: bool = False
@@ -219,6 +221,7 @@ class DecisionTrace:
     errors: list[str] = field(default_factory=list)
     media_facts: Any | None = None
     exception_check: Any | None = None
+    consistency: Any | None = None
 
     def to_output_row(self) -> dict[str, Any]:
         evidence = ";".join(self.evidence_message_ids) if self.evidence_message_ids else "none"

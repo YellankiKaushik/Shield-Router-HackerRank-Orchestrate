@@ -7,6 +7,7 @@ import re
 from .ai_models import AdvisoryModelOutput
 from .behaviorgraph import build_features
 from .confidence import calibrate_confidence
+from .consistency import validate_and_repair_reason
 from .exception_check import check_exception
 from .fallback_synthesis import synthesize
 from .indexes import build_indexes
@@ -95,8 +96,20 @@ def process_message(
         action, message_type, rule_reason = resolve(safety, features, synthesis, exception)
         confidence = calibrate_confidence(action, safety, features, synthesis, evidence, errors)
         reason = build_reason(action, rule_reason, safety, features, synthesis, evidence)
+        consistency = validate_and_repair_reason(
+            action=action,
+            message_type=message_type,
+            reason=reason,
+            safety=safety,
+            features=features,
+            synthesis=synthesis,
+            evidence=evidence,
+            resolver_rule=rule_reason,
+            events=idx.events,
+        )
+        reason = consistency.final_reason
         evidence_ids = [e.message_id for e in evidence]
-        return DecisionTrace(row["message_id"], action, message_type, reason, confidence, evidence_ids, safety, features, synthesis, errors, media_facts, exception)
+        return DecisionTrace(row["message_id"], action, message_type, reason, confidence, evidence_ids, safety, features, synthesis, errors, media_facts, exception, consistency)
     except Exception as exc:
         errors.append(type(exc).__name__)
         safety = SafetyAssessment("suspicious", "low", ("row_processing_error",), "unknown")
