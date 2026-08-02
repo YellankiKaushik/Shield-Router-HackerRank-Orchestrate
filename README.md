@@ -1,130 +1,86 @@
-# HackerRank Orchestrate
+# ShieldRouter
 
-Starter repository for the **HackerRank Orchestrate** 24-hour hackathon.
+ShieldRouter is the final HackerRank Orchestrate Message Notification Router
+submission for the WhatsApp routing challenge. It reads the participant-facing
+dataset, routes every incoming message to `notify`, `digest`, or `mute`, and
+writes the official six-column `output.csv`.
 
-## Message Notification Router
+This root README is a navigation layer for reviewers. The runnable submission
+instructions live in [code/README.md](code/README.md).
 
-Build an AI-powered system for WhatsApp that decides which messages deserve immediate attention, which should wait, and which should be muted.
+## Start Here
 
-The system must reason over multimodal messages, including text messages, image posters/screenshots, and voice notes.
+- Challenge contract: [problem_statement.md](problem_statement.md)
+- Runnable code package guide: [code/README.md](code/README.md)
+- Final implementation design: [docs/ShieldRouter - Final Implementation-Ready Technical.md](docs/ShieldRouter%20%E2%80%94%20Final%20Implementation-Ready%20Technical.md)
+- Unified technical design: [docs/shieldrouter_tech_design.md](docs/shieldrouter_tech_design.md)
+- Codebase map: [docs/CODEBASE_MAP.md](docs/CODEBASE_MAP.md)
+- Final evaluation report: [code/evaluation/FINAL_EVALUATION_REPORT.md](code/evaluation/FINAL_EVALUATION_REPORT.md)
+- Design traceability: [code/evaluation/FINAL_DESIGN_TRACEABILITY.md](code/evaluation/FINAL_DESIGN_TRACEABILITY.md)
+- Operational analysis: [code/evaluation/FINAL_OPERATIONAL_ANALYSIS.md](code/evaluation/FINAL_OPERATIONAL_ANALYSIS.md)
+- AI Judge brief: [code/evaluation/AI_JUDGE_BRIEF.md](code/evaluation/AI_JUDGE_BRIEF.md)
 
-WhatsApp is noisy. A user can receive family chats, society notices, school updates, co-worker messages, business account promotions, image posters, voice notes, and scams in the same message stream. Treating every message the same creates two bad outcomes: important messages get missed, and unwanted or risky messages interrupt the user.
+## Output Contract
 
-Read [`problem_statement.md`](./problem_statement.md) for the full task spec, input/output schema, allowed values, and submission format.
-
----
-
-## Repository Layout
+The submitted CSV must contain exactly these columns:
 
 ```text
-.
-├── AGENTS.md                         # Rules for AI coding tools + transcript logging
-├── problem_statement.md              # Full challenge statement
-├── README.md                         # You are here
-└── dataset/
-    ├── messages.csv                  # Messages to route
-    ├── output.csv                    # Blank submission template
-    ├── sample_messages.csv           # Solved examples
-    ├── users.csv                     # User notification behavior
-    ├── groups.csv                    # Group metadata
-    ├── group_members.csv             # User-group relationships
-    ├── business_accounts.csv         # Business sender metadata
-    ├── user_business_history.csv     # User-business history
-    ├── message_history.csv           # Historical messages
-    ├── message_events.csv            # User reactions to historical messages
-    ├── images.csv                    # Image IDs and media file paths
-    ├── voice_notes.csv               # Voice note IDs and media file paths
-    ├── daily_notification_summary.csv
-    └── media/
-        ├── images/
-        └── audio/
+message_id,action,message_type,reason,confidence,evidence_message_ids
 ```
 
----
+Allowed actions are `notify`, `digest`, and `mute`.
 
-## What You Need to Build
+Allowed message types are `personal`, `urgent`, `event`, `payment`,
+`business_update`, `promotion`, `greeting`, `forward`, `spam`, `scam`, and
+`unknown`.
 
-For every row in `dataset/messages.csv`, produce one row in `output.csv` with:
+Do not add `user_id`, `risk_flags`, `social`, `admin`, `other`, or
+`scam_or_risk` to the official output.
 
-| Column | Meaning |
-|---|---|
-| `message_id` | Incoming message ID |
-| `action` | One of `notify`, `digest`, or `mute` |
-| `message_type` | Best-fit message category |
-| `reason` | Short human-readable explanation |
-| `confidence` | Number from `0` to `1` |
-| `evidence_message_ids` | Historical message IDs used as evidence; write `none` if there is no useful evidence |
+## Setup And Execution
 
-Your system should make personalized decisions using the provided message, user, group, business, media, and historical interaction data.
-For image and voice-note messages, `images.csv` and `voice_notes.csv` only provide file paths; your system should inspect the media files themselves.
+Use Python 3.12.
 
----
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r code\requirements.txt
+.\.venv\Scripts\python.exe code\main.py validate-input --dataset dataset
+.\.venv\Scripts\python.exe code\main.py prepare-models
+.\.venv\Scripts\python.exe code\main.py run --dataset dataset --output output.csv --local-multimodal --summary-json .tmp\summary.json
+.\.venv\Scripts\python.exe code\main.py validate-output --dataset dataset --output output.csv
+.\.venv\Scripts\python.exe -m pytest code\tests -q -p no:cacheprovider --basetemp=.tmp\pytest
+```
 
-## Suggested Workflow
+`prepare-models` is the one-time local model preparation step for
+Faster-Whisper and RapidOCR. After the model cache is prepared outside the
+repository, the selected `--local-multimodal` execution uses zero external
+provider requests.
 
-1. Inspect `dataset/sample_messages.csv` to understand the expected output format.
-2. Load `dataset/messages.csv` and all relevant context files.
-3. Build your routing system using any approach: LLMs, retrieval, rules, classifiers, agents, or hybrids.
-4. Write predictions to `output.csv`.
-5. Evaluate your approach on the solved sample rows before submitting.
+## Repository Map
 
-You may use any language or runtime. Python, JavaScript, and TypeScript are all reasonable choices.
+```text
+code/
+  main.py                 CLI entry point
+  src/shieldrouter/       production router package
+  prompts/                optional OpenRouter prompt templates
+  tests/                  unit and integration tests
+  evaluation/             final reports, audits, baselines, and diagnostics
+docs/                     architecture and implementation documents
+dataset/                  participant-facing local dataset, excluded from code.zip
+submission/               final upload artifacts, intentionally untracked
+```
 
----
+## Security Model
 
-## Requirements
+Messages, OCR text, QR content, and voice transcripts are treated as untrusted
+data. Safety checks run before final routing, high-risk messages cannot be
+upgraded by personalization, API keys are environment-only, and the final ZIP
+excludes dataset media, caches, models, `.env` files, transcripts, and
+submission artifacts.
 
-Your solution must:
+## Limitations
 
-- be runnable from the terminal
-- read the provided files from `dataset/`
-- produce a valid `output.csv`
-- include one prediction for every `message_id` in `dataset/messages.csv`
-- not use organizer-only files or hardcoded labels
-
-If you use API keys or secrets, read them from environment variables. Never hardcode secrets in the repo.
-
----
-
-## Evaluation
-
-Your `output.csv` will be compared against hidden ground-truth labels.
-
-The scoring will consider:
-
-- correctness of `action`
-- correctness of `message_type`
-- usefulness and consistency of `reason`
-- whether `evidence_message_ids` point to relevant historical messages
-- reasonable confidence calibration
-
-Strong systems will combine retrieval, structured metadata, behavioral history, safety checks, OCR/ASR handling, and contextual reasoning.
-
----
-
-## Chat Transcript Logging
-
-This repo includes an [`AGENTS.md`](./AGENTS.md) file for AI coding tools. It asks compatible tools to append conversation summaries to:
-
-| Platform | Path |
-|---|---|
-| macOS / Linux | `$HOME/hackerrank_orchestrate_august26/log.txt` |
-| Windows | `%USERPROFILE%\hackerrank_orchestrate_august26\log.txt` |
-
-Upload this log as your chat transcript at submission time. Do not paste secrets into the chat.
-
----
-
-## Submission
-
-Submit the following files as instructed by HackerRank:
-
-1. **Code zip**: full runnable solution, prompts/configs, README, and any evaluation files.
-2. **Predictions CSV**: final `output.csv` for all rows in `dataset/messages.csv`.
-3. **Chat transcript**: the `log.txt` described above.
-
-Before submitting, confirm:
-
-- `output.csv` has one row per row in `dataset/messages.csv`.
-- `output.csv` has the exact required columns in the exact required order.
-- Your runnable code and setup instructions are included in `code.zip`.
+ShieldRouter uses deterministic rules, retrieval, local OCR, and local ASR. It
+does not claim acoustic emotion recognition, complete visual scene
+understanding, learned probability calibration, deployed production
+infrastructure, or guaranteed hidden-set performance.
