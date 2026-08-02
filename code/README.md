@@ -2,7 +2,16 @@
 
 ShieldRouter is a deterministic Python CLI for the HackerRank Orchestrate August 2026 Message Notification Router. It reads the official participant CSVs from `dataset/`, builds local personalization and safety context, inspects local voice and image media in zero-network modes, and writes the required six-column `output.csv`.
 
-The current selected candidate is `code/evaluation/baselines/local_multimodal_tuned.csv`, promoted to root `output.csv` after validation. The previous local-voice root output is preserved at `code/evaluation/baselines/pre_local_multimodal_output.csv`.
+## Sprint 2 final-alignment notes
+
+- Selected candidate: `code/evaluation/baselines/final_design_aligned.csv`.
+- Structured run summaries are available with `--summary-json <path>`. The summary includes counts, confidence ranges, media/cache/provider statistics, runtime, output SHA-256, model/cache metadata, timestamp, and commit when available. It intentionally excludes raw message text, OCR text, voice transcripts, API keys, credentials, and absolute private paths.
+- Voice metadata is transcript-derived only: `detected_tone` is `urgent`, `neutral`, `calm`, or `unknown`, and `detected_pressure_language` marks coercive or manipulation wording. ShieldRouter does not perform acoustic emotion recognition, pitch analysis, stress detection, speaker identity, or prosody analysis.
+- BehaviorGraph now exposes novelty, highest same-user history similarity, transaction relationship/strength, bounded forwarding fatigue, and selected evidence engagement counts in trace output.
+- Muted-group exception checking is an explicit stage before the deterministic resolver. High-risk safety still blocks notification eligibility.
+- Reason consistency validation runs inside the routing path and reports zero unresolved contradictions across the final 110-row candidate.
+
+The current selected candidate is `code/evaluation/baselines/final_design_aligned.csv`, promoted to root `output.csv` after validation. The previous local-voice root output is preserved at `code/evaluation/baselines/pre_local_multimodal_output.csv`.
 
 ## Architecture
 
@@ -46,6 +55,7 @@ Validate inputs:
 
 ```powershell
 python code/main.py validate-input --dataset dataset
+python code/main.py run --dataset dataset --output code/evaluation/baselines/final_design_aligned.csv --local-multimodal --summary-json code/evaluation/final_design_aligned_summary.json
 ```
 
 Offline text/context mode:
@@ -63,8 +73,8 @@ python code/main.py run --dataset dataset --output code/evaluation/baselines/loc
 Local multimodal mode, selected candidate:
 
 ```powershell
-python code/main.py run --dataset dataset --output code/evaluation/baselines/local_multimodal_tuned.csv --local-multimodal --cache-dir code/.shieldrouter_cache
-python code/main.py validate-output --dataset dataset --output code/evaluation/baselines/local_multimodal_tuned.csv
+python code/main.py run --dataset dataset --output code/evaluation/baselines/final_design_aligned.csv --local-multimodal --cache-dir code/.shieldrouter_cache
+python code/main.py validate-output --dataset dataset --output code/evaluation/baselines/final_design_aligned.csv
 ```
 
 Zero-network reproduction:
@@ -73,7 +83,7 @@ Zero-network reproduction:
 python code/main.py run --dataset dataset --output .tmp/local_multimodal_rerun.csv --local-multimodal --cache-dir code/.shieldrouter_cache
 ```
 
-The rerun should be byte-identical to `code/evaluation/baselines/local_multimodal_tuned.csv` when inputs and code are unchanged.
+The rerun should be byte-identical to `code/evaluation/baselines/final_design_aligned.csv` when inputs and code are unchanged.
 
 Optional OpenRouter hybrid mode:
 
@@ -91,7 +101,7 @@ python code/main.py evaluate-sample --dataset dataset --local-multimodal --cache
 python -m pytest code/tests -q -p no:cacheprovider --basetemp=.tmp/pytest
 ```
 
-Current test count: 76 passing.
+Current test count: 127 passing.
 
 ## Output Contract
 
@@ -113,7 +123,7 @@ Allowed actions are `notify`, `digest`, and `mute`. Allowed message types are `p
 - OpenCV QR detection runs locally; no QR destinations are opened.
 - Local Faster-Whisper processes all 8 voice notes from cache in the validated run.
 - Provider request count is exactly zero in `--local-voice` and `--local-multimodal`.
-- Local multimodal deterministic rerun SHA-256: `A819A2AF4F32687419F342E18D5320C0C3EBB41A2F4385430D153E5842E4686D`.
+- Local multimodal deterministic rerun SHA-256: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
 - The final code package is expected to contain code and documentation; the evaluation dataset is provided externally by the challenge environment.
 
 ## Reports

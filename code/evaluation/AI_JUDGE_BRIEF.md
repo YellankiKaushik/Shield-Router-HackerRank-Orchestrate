@@ -34,7 +34,7 @@ Selected local multimodal mode requires no external API. If media fails validati
 
 ## Why was local multimodal selected over OpenRouter hybrid?
 
-Local multimodal produced 110 valid rows, passed 76 tests, extracted all 15 images, processed all 8 voice notes, made zero provider requests, reran byte-identically, and improved labeled sample metrics over offline and local-voice ablations. OpenRouter remains optional but is not needed for the selected zero-network candidate.
+Local multimodal produced 110 valid rows, passed 127 tests, extracted all 15 images, processed all 8 voice notes, made zero provider requests, reran byte-identically, and improved labeled sample metrics over offline and local-voice ablations. OpenRouter remains optional but is not needed for the selected zero-network candidate.
 
 ## What are the main limitations?
 
@@ -43,3 +43,25 @@ OCR can be weak on low-text images; the system does not invent visual scene fact
 ## How can the system scale beyond the hackathon?
 
 The current design can scale by replacing CSV indexes with persistent stores, adding stronger local OCR/layout models, adding learned calibration from labeled feedback, expanding language-specific safety lexicons, and keeping the resolver/audit trail as the final accountable decision layer.
+# Sprint 2 Judge Brief Addendum
+
+ShieldRouter's selected mode is zero-network local multimodal. The final resolver remains deterministic and owns the final `notify`, `digest`, or `mute` action. OpenRouter is optional advisory functionality only and is not required for the selected submission path.
+
+Final alignment features:
+
+- BehaviorGraph exposes same-user novelty, highest history similarity, transaction relationship/strength from `user_business_history.csv`, bounded forwarding fatigue, and evidence engagement counts.
+- Forwarded messages are not muted merely because they were forwarded. The mute branch requires chain-language, repeated content, muted/negative context, or selected evidence with negative reactions.
+- Muted-group/direct-mention exception checking is explicit. Safe trusted critical direct mentions can notify even from muted groups or quiet-hour contexts; `high_risk` always blocks.
+- Voice tone is transcript-derived linguistic metadata only: `urgent`, `neutral`, `calm`, or `unknown`, plus a pressure-language flag. There is no acoustic emotion, pitch, stress, speaker, or prosody analysis.
+- Reason consistency validation checks final action/type/reason/safety/resolver/evidence together and produced zero unresolved contradictions across the 110-row final candidate.
+- `--summary-json` writes operational metrics atomically without raw message text, OCR text, voice transcripts, secrets, or absolute private paths.
+
+Validation snapshot:
+
+- Full suite: `127 passed`.
+- Final candidate: `code/evaluation/baselines/final_design_aligned.csv`.
+- Final root output SHA: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
+- Local multimodal media: 15/15 images succeeded, 8/8 voice notes succeeded.
+- Provider requests in selected mode: zero.
+- Labeled sample metrics: 1.0 action accuracy, 1.0 action macro F1, 1.0 type accuracy, 1.0 type macro F1.
+- Hidden-set performance is not claimed.

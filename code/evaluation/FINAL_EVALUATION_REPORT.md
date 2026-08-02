@@ -110,22 +110,22 @@ Local multimodal was selected because it matched or improved sample performance,
 
 ## Final Full Run
 
-- Tests: 76 passed.
+- Tests: 127 passed.
 - Input validation: 110 messages.
 - Output validation: 110 rows.
 - Unique IDs: 110.
 - Actions: digest 53, mute 45, notify 12.
 - Message types: scam 31, unknown 18, promotion 13, forward 10, greeting 9, event 7, business_update 7, personal 6, urgent 5, payment 3, spam 1.
-- Confidence: min 0.55, mean 0.7299, max 0.95.
+- Confidence: min 0.55, mean 0.7322, max 0.95.
 - Evidence usage: 106 rows.
 - Provider requests: 0.
-- Runtime: 0.1997s first final temp run, 0.1727s second final temp run.
-- SHA-256: `A819A2AF4F32687419F342E18D5320C0C3EBB41A2F4385430D153E5842E4686D`.
+- Runtime: 0.1938s cached final candidate run; 0.2962s cached deterministic rerun; fresh voice-metadata cache run was 31.3057s.
+- SHA-256: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
 
 ## Audits
 
 - Leakage/hardcoding: PASS after routing-only loader correction.
-- Changed decisions: 8 reviewed, all supported.
+- Changed rows versus protected root: 7 confidence-only updates reviewed, all supported; action/type decisions match after Sprint 2 review corrections.
 - Media consistency: 15 image and 8 voice rows reviewed, all internally consistent.
 - Evidence validity: PASS, 0 invalid, 0 weak.
 - Secret hygiene: PASS; generated caches and environments are ignored.
@@ -137,3 +137,31 @@ Local multimodal was selected because it matched or improved sample performance,
 - Faster-Whisper selected zero-network runs require local model availability beforehand.
 - Confidence is deterministic calibration, not learned probability calibration.
 - Perfect sample-set results do not guarantee hidden-set performance.
+# Sprint 2 Final Alignment Addendum
+
+Selected candidate: `code/evaluation/baselines/final_design_aligned.csv`.
+
+Final local validation results:
+
+- Full test suite: `127 passed`.
+- Input validation: 110 messages.
+- Candidate output validation: 110 rows, exact six-column schema.
+- Final root output SHA-256: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
+- Local multimodal media stats: 15 images attempted/succeeded, 8 voice notes attempted/succeeded, zero image/voice failures.
+- Provider requests/retries/fallbacks in selected mode: `0/0/0`.
+- Deterministic cached rerun: byte-identical to `final_design_aligned.csv`.
+- Reason consistency: 110 `ok`, zero unresolved contradictions, zero nonexistent evidence references.
+- Labeled sample metrics for selected local multimodal mode: action accuracy 1.0, action macro F1 1.0, message-type accuracy 1.0, message-type macro F1 1.0, scam recall 1.0, notify precision/recall 1.0/1.0.
+
+Sprint 2 corrections:
+
+- `msg_043` review prevented muting based on forwarding count alone; excessive forwarding now requires chain-language, repeated content, muted/negative context, or negative selected evidence before becoming a mute branch.
+- `msg_056` review restored the trusted urgent direct mention exception in muted family/group context through a general trust threshold correction, not a message-ID exception.
+- Voice tone/pressure is linguistic and transcript-derived only. No acoustic emotion, pitch, stress, speaker, or prosody inference is implemented.
+- Structured `--summary-json` is available for operational reporting without raw text, OCR text, transcripts, secrets, or absolute private paths.
+
+Limitations:
+
+- Perfect sample metrics do not guarantee hidden-set performance.
+- Optional OpenRouter artifacts are advisory experiments and are not the selected submission mode.
+- Fresh-cache runtime differs from cached runtime because local model/media facts are cached by content, model, and schema versions.

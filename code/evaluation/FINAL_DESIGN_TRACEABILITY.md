@@ -2,7 +2,7 @@
 
 Audit time: 2026-08-02 IST
 
-Scope: point-in-time audit after the documentation checkpoint commit and before Sprint 1 production-code alignment. Source priority follows `AGENTS.md`, `problem_statement.md`, actual participant CSVs/media, `docs/ShieldRouter — Final Implementation-Ready Technical.md`, and `docs/shieldrouter_tech_design.md`.
+Scope: point-in-time audit after the documentation checkpoint commit and before Sprint 1 production-code alignment. Source priority follows `AGENTS.md`, `problem_statement.md`, actual participant CSVs/media, `docs/ShieldRouter â€” Final Implementation-Ready Technical.md`, and `docs/shieldrouter_tech_design.md`.
 
 Selected mode decisions:
 
@@ -30,6 +30,28 @@ Selected mode decisions:
 Implemented or intentionally accepted now: 44 / 68 = 64.7%.
 
 Implemented, intentionally accepted, or packaging-only pending: 49 / 68 = 72.1%.
+
+## Sprint 2 Final Alignment Addendum
+
+Post-Sprint 2 traceability status:
+
+- Explicit BehaviorGraph novelty and highest same-user history similarity are implemented and visible in traces.
+- Transaction relationship/strength is implemented from actual `user_business_history.csv` fields and is not inferred from business verification alone.
+- Bounded forwarding fatigue is implemented and separated from final action ownership. Forwarding count alone no longer mutes a useful message without chain-language, repeated/negative context, or selected negative evidence.
+- The muted-group/direct-mention exception stage is implemented in `code/src/shieldrouter/exception_check.py`; the deterministic resolver remains final action owner.
+- `msg_056` review corrected the exception rule generally so safe trusted critical direct mentions can notify from muted groups.
+- Transcript-derived voice tone/pressure metadata is implemented. No acoustic emotion, stress, pitch, speaker, or prosody analysis is claimed.
+- Reason/action/type/evidence consistency validation is implemented in `code/src/shieldrouter/consistency.py` and reports 110 `ok` rows in `FINAL_REASON_CONSISTENCY_REPORT.csv`.
+- Optional provider prompt templates now exist under `code/prompts/` and are not read by local multimodal mode.
+- Structured operational summary JSON is implemented via `run --summary-json <path>`.
+- Packaging and submission remain `REQUIRES_PACKAGING` because this sprint explicitly forbids packaging.
+
+Updated validation evidence:
+
+- Full test suite: `127 passed`.
+- Final candidate output: `code/evaluation/baselines/final_design_aligned.csv`.
+- Final root output SHA: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
+- Final local multimodal summary: zero provider requests, 15 image successes, 8 voice successes.
 
 ## Pipeline Stages
 
@@ -126,4 +148,3 @@ Implemented, intentionally accepted, or packaging-only pending: 49 / 68 = 72.1%.
 | PACK-003 | Final spec section 45 | README setup and run instructions | IMPLEMENTED | `README.md`, `code/README.md` | Manual doc review | May need final Sprint 2 update | Recheck before packaging | Yes |
 | PACK-004 | Final spec section 44 | Secret/package hygiene audit | REQUIRES_PACKAGING | Existing audit artifacts | Current doc scan | Must rerun on final package | Defer | Yes, later |
 | PACK-005 | Final spec section 51 | Promote candidate only after validation | REQUIRES_PACKAGING | `output.csv`, `code/evaluation/baselines` | Protected SHA baseline | User forbids root overwrite in Sprint 1 | Defer | Yes, later |
-
