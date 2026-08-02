@@ -2,7 +2,7 @@
 
 Audit time: 2026-08-02 IST
 
-Scope: point-in-time audit after the documentation checkpoint commit and before Sprint 1 production-code alignment. Source priority follows `AGENTS.md`, `problem_statement.md`, actual participant CSVs/media, `docs/ShieldRouter â€” Final Implementation-Ready Technical.md`, and `docs/shieldrouter_tech_design.md`.
+Scope: point-in-time audit after the documentation checkpoint commit and before Sprint 1 production-code alignment. Source priority follows `AGENTS.md`, `problem_statement.md`, actual participant CSVs/media, `docs/ShieldRouter Ã¢â‚¬â€ Final Implementation-Ready Technical.md`, and `docs/shieldrouter_tech_design.md`.
 
 Selected mode decisions:
 
@@ -50,7 +50,7 @@ Updated validation evidence:
 
 - Full test suite: `127 passed`.
 - Final candidate output: `code/evaluation/baselines/final_design_aligned.csv`.
-- Final root output SHA: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
+- Final root output SHA: `F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6`.
 - Final local multimodal summary: zero provider requests, 15 image successes, 8 voice successes.
 
 ## Pipeline Stages

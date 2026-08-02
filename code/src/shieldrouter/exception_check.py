@@ -48,7 +48,7 @@ def check_exception(safety, features, synthesis) -> ExceptionCheckResult:
     elif not trusted_context:
         reason = "muted_group_without_trusted_context"
     else:
-        reason = "trusted_critical_direct_mention"
+        reason = "trusted critical direct mention"
     return ExceptionCheckResult(
         eligible_for_notify=eligible,
         direct_mention=direct_mention,

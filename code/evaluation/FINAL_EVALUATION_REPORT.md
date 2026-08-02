@@ -120,7 +120,7 @@ Local multimodal was selected because it matched or improved sample performance,
 - Evidence usage: 106 rows.
 - Provider requests: 0.
 - Runtime: 0.1938s cached final candidate run; 0.2962s cached deterministic rerun; fresh voice-metadata cache run was 31.3057s.
-- SHA-256: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
+- SHA-256: `F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6`.
 
 ## Audits
 
@@ -146,7 +146,7 @@ Final local validation results:
 - Full test suite: `127 passed`.
 - Input validation: 110 messages.
 - Candidate output validation: 110 rows, exact six-column schema.
-- Final root output SHA-256: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
+- Final root output SHA-256: `F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6`.
 - Local multimodal media stats: 15 images attempted/succeeded, 8 voice notes attempted/succeeded, zero image/voice failures.
 - Provider requests/retries/fallbacks in selected mode: `0/0/0`.
 - Deterministic cached rerun: byte-identical to `final_design_aligned.csv`.

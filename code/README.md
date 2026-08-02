@@ -123,7 +123,7 @@ Allowed actions are `notify`, `digest`, and `mute`. Allowed message types are `p
 - OpenCV QR detection runs locally; no QR destinations are opened.
 - Local Faster-Whisper processes all 8 voice notes from cache in the validated run.
 - Provider request count is exactly zero in `--local-voice` and `--local-multimodal`.
-- Local multimodal deterministic rerun SHA-256: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
+- Local multimodal deterministic rerun SHA-256: `F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6`.
 - The final code package is expected to contain code and documentation; the evaluation dataset is provided externally by the challenge environment.
 
 ## Reports

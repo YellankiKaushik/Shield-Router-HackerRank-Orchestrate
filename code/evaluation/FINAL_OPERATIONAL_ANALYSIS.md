@@ -9,15 +9,15 @@ Selected mode: zero-network local multimodal.
 - Evidence usage count: 106.
 - Images attempted/succeeded/failed: 15/15/0.
 - Voice attempted/succeeded/failed: 8/8/0.
-- OCR cache hits: 15; transcript cache hits first run: 8; transcript cache hits cached rerun: 8.
+- OCR cache hits: 15; transcript cache hits final run: 8; transcript cache hits cached rerun: 8.
 - Provider requests/retries/fallbacks: 0/0/0.
-- First fresh voice-metadata-cache runtime: 0.2085 seconds; cached rerun runtime: 0.3123 seconds.
-- Output SHA-256: d0b02e6f471fac76bfc3c27a20c53a9c68e0d880ca373f4ee268c73114d75c3a.
+- Final candidate runtime: 0.2123 seconds; cached deterministic rerun runtime: 0.2093 seconds; fresh voice-metadata-cache run was 31.3057 seconds.
+- Output SHA-256: F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6.
 
 Cost and cache notes:
 
 - Selected mode uses zero external-provider requests; selected API cost is zero.
 - First-run model preparation can require a one-time Faster-Whisper download via `prepare-models` if the local model cache is absent.
-- Fresh-cache runtime differs from fully cached runtime because Whisper/OCR facts are cached by media/model/schema version.
+- Fresh-cache runtime differs from fully cached runtime because Whisper/OCR facts are cached by content, model, and schema versions.
 - Optional OpenRouter results, if present, are advisory experiments and are not the selected submission mode.
 - No raw message text, OCR text, voice transcripts, API keys, credentials, or absolute private paths are included in the structured summary JSON.

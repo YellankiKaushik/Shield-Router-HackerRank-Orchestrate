@@ -60,7 +60,7 @@ Validation snapshot:
 
 - Full suite: `127 passed`.
 - Final candidate: `code/evaluation/baselines/final_design_aligned.csv`.
-- Final root output SHA: `D0B02E6F471FAC76BFC3C27A20C53A9C68E0D880CA373F4EE268C73114D75C3A`.
+- Final root output SHA: `F561FCFA8791E5733728B2FEA6730EEB4E2C9424EF5BDFF1AE0F1AE5C450F8B6`.
 - Local multimodal media: 15/15 images succeeded, 8/8 voice notes succeeded.
 - Provider requests in selected mode: zero.
 - Labeled sample metrics: 1.0 action accuracy, 1.0 action macro F1, 1.0 type accuracy, 1.0 type macro F1.

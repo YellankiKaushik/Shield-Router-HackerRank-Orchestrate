@@ -42,7 +42,7 @@ msg_109,mute,scam,Safety override; payment or qr pressure; safety rules found ri
 msg_108,mute,scam,"Safety override; credential or login code request, credential request with instruction; safety rules found risky content; similar prior message message_0094",0.85,message_0094;message_0093
 msg_019,digest,scam,suspicious but not decisive; safety rules found risky content; similar prior message message_0277,0.61,message_0277
 msg_088,digest,unknown,ambiguous content; voice attachment is available; voice-note attachment is available; recipient has muted this group; similar prior message message_0224,0.79,message_0224;message_0232;message_0383
-msg_056,notify,urgent,trusted_critical_direct_mention; urgent direct request or deadline was detected; recipient has muted this group; similar prior message message_0226,0.74,message_0226;message_0167;message_0359;message_0054;message_0225
+msg_056,notify,urgent,trusted critical direct mention; urgent direct request or deadline was detected; recipient has muted this group; similar prior message message_0226,0.74,message_0226;message_0167;message_0359;message_0054;message_0225
 msg_027,digest,promotion,safe non-urgent content; message contains promotional language; image attachment is available; image layout appears to be document; similar prior message message_0007,0.82,message_0007;message_0033;message_0272;message_0109;message_0110
 msg_050,notify,event,useful urgent content; business appointment or scheduled update; similar prior message message_0279,0.74,message_0279;message_0278;message_0155
 msg_083,digest,greeting,safe non-urgent content; message is conversational; voice-note attachment is available; similar prior message message_0219,0.77,message_0219

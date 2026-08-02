@@ -4,7 +4,7 @@
     "mute": 45,
     "notify": 12
   },
-  "application_version": "7a5db565e6edc4432b676e63240307774eacc14c",
+  "application_version": "b205dcbaf1d7f58ae226077ea6168e9945b08625",
   "cache": {
     "cache_dir": "code/.shieldrouter_cache",
     "ocr_cache_hits": 15,
@@ -15,7 +15,7 @@
     "mean": 0.7322172727272727,
     "minimum": 0.5498
   },
-  "elapsed_runtime_seconds": 0.2085,
+  "elapsed_runtime_seconds": 0.2123,
   "evidence_usage": 106,
   "fallbacks": 0,
   "images": {
@@ -43,12 +43,12 @@
   },
   "ocr_cache_hits": 15,
   "output_path": "code/evaluation/baselines/final_design_aligned.csv",
-  "output_sha256": "d0b02e6f471fac76bfc3c27a20c53a9c68e0d880ca373f4ee268c73114d75c3a",
+  "output_sha256": "f561fcfa8791e5733728b2fea6730eeb4e2c9424ef5bdff1ae0f1ae5c450f8b6",
   "per_row_error_count": {},
   "provider_requests": 0,
   "retries": 0,
   "rows": 110,
-  "timestamp": "2026-08-02T09:36:46+0530",
+  "timestamp": "2026-08-02T09:51:54+0530",
   "transcript_cache_hits": 8,
   "unique_ids": 110,
   "voice": {
