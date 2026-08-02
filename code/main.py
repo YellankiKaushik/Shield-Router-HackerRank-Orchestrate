@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -56,6 +57,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     summary["runtime_seconds"] = round(time.perf_counter() - started, 4)
     if getattr(args, "local_voice", False) or getattr(args, "local_multimodal", False):
         _assert_zero_provider_requests(summary)
+    if getattr(args, "summary_json", None):
+        write_summary_json(Path(args.summary_json), args, summary, traces, started)
     print("RUN OK")
     print_summary(summary)
     if args.trace_errors:
@@ -63,6 +66,117 @@ def cmd_run(args: argparse.Namespace) -> int:
             if trace.errors:
                 print(f"{trace.message_id}: {','.join(trace.errors)}")
     return 0
+
+
+def write_summary_json(path: Path, args: argparse.Namespace, summary: dict[str, object], traces: list, started: float) -> None:
+    payload = build_summary_payload(args, summary, traces, started)
+    validate_summary_payload(payload)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(f".{path.name}.tmp")
+    temp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    temp.replace(path)
+
+
+def build_summary_payload(args: argparse.Namespace, summary: dict[str, object], traces: list, started: float) -> dict[str, object]:
+    provider = summary.get("provider") if isinstance(summary.get("provider"), dict) else {}
+    output_path = Path(args.output)
+    mode = "local_multimodal" if getattr(args, "local_multimodal", False) else "local_voice" if getattr(args, "local_voice", False) else "online" if getattr(args, "online", False) else "offline"
+    output_sha = hashlib.sha256(output_path.read_bytes()).hexdigest() if output_path.exists() else ""
+    return {
+        "mode": mode,
+        "rows": int(summary.get("rows", 0)),
+        "unique_ids": int(summary.get("unique_ids", 0)),
+        "action_distribution": summary.get("actions", {}),
+        "message_type_distribution": summary.get("message_types", {}),
+        "confidence": {
+            "minimum": summary.get("confidence_min", 0),
+            "mean": summary.get("confidence_mean", 0),
+            "maximum": summary.get("confidence_max", 0),
+        },
+        "evidence_usage": int(summary.get("evidence_usage_count", 0)),
+        "images": {
+            "attempted": int(provider.get("image_extraction_attempts", 0) or 0),
+            "succeeded": int(provider.get("image_extraction_successes", 0) or 0),
+            "failed": int(provider.get("image_extraction_failures", 0) or 0),
+        },
+        "voice": {
+            "attempted": int(provider.get("transcription_attempts", 0) or 0),
+            "succeeded": int(provider.get("transcription_successes", 0) or 0),
+            "failed": int(provider.get("transcription_failures", 0) or 0),
+        },
+        "ocr_cache_hits": int(provider.get("image_extraction_cache_hits", 0) or 0),
+        "transcript_cache_hits": int(provider.get("transcription_cache_hits", 0) or 0),
+        "provider_requests": int(provider.get("request_count", 0) or 0),
+        "retries": int(provider.get("retry_count", 0) or 0),
+        "fallbacks": int(provider.get("fallback_count", 0) or 0),
+        "per_row_error_count": {trace.message_id: len(trace.errors) for trace in traces if trace.errors},
+        "elapsed_runtime_seconds": round(time.perf_counter() - started, 4),
+        "output_path": _display_path(output_path),
+        "output_sha256": output_sha,
+        "models": {
+            "whisper_model": provider.get("whisper_model_used", "") or os.environ.get("LOCAL_WHISPER_MODEL", "small"),
+            "external_models": provider.get("actual_models", []),
+        },
+        "cache": {
+            "cache_dir": _display_path(Path(getattr(args, "cache_dir", ""))) if getattr(args, "cache_dir", "") else "",
+            "ocr_cache_hits": int(provider.get("image_extraction_cache_hits", 0) or 0),
+            "transcript_cache_hits": int(provider.get("transcription_cache_hits", 0) or 0),
+        },
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "application_version": _git_commit_or_unknown(),
+    }
+
+
+def validate_summary_payload(payload: dict[str, object]) -> None:
+    required = {
+        "mode",
+        "rows",
+        "unique_ids",
+        "action_distribution",
+        "message_type_distribution",
+        "confidence",
+        "evidence_usage",
+        "images",
+        "voice",
+        "ocr_cache_hits",
+        "transcript_cache_hits",
+        "provider_requests",
+        "retries",
+        "fallbacks",
+        "per_row_error_count",
+        "elapsed_runtime_seconds",
+        "output_path",
+        "output_sha256",
+        "models",
+        "cache",
+        "timestamp",
+        "application_version",
+    }
+    missing = required - set(payload)
+    if missing:
+        raise DatasetError(f"summary_json missing keys: {sorted(missing)}")
+    dumped = json.dumps(payload, ensure_ascii=False).casefold()
+    forbidden = ("message_text", "visible_text", "transcript_text", "voice_transcript", "ocr_text", "api_key", "password", "credential")
+    if any(term in dumped for term in forbidden):
+        raise DatasetError("summary_json contains forbidden sensitive/raw-content fields")
+    if len(str(payload.get("output_sha256", ""))) != 64:
+        raise DatasetError("summary_json output_sha256 is invalid")
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(Path.cwd().resolve())).replace("\\", "/")
+    except ValueError:
+        return path.name
+
+
+def _git_commit_or_unknown() -> str:
+    try:
+        import subprocess
+
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT.parent, text=True, stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        return "unknown"
 
 
 def cmd_validate_output(args: argparse.Namespace) -> int:
@@ -137,6 +251,8 @@ def cmd_trace(args: argparse.Namespace) -> int:
         "features": trace.features.__dict__,
         "synthesis": trace.synthesis.__dict__,
         "exception_check": trace.exception_check.__dict__ if trace.exception_check else None,
+        "consistency": trace.consistency.__dict__ if trace.consistency else None,
+        "media_facts": trace.media_facts.model_dump() if hasattr(trace.media_facts, "model_dump") else trace.media_facts,
         "errors": trace.errors,
     }
     print(json.dumps(payload, indent=2, sort_keys=True, default=str))
@@ -471,6 +587,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--local-multimodal", action="store_true", help="Use local OCR/QR for images and local Faster-Whisper for voice; no external provider requests.")
     p.add_argument("--cache-dir", default="code/.shieldrouter_cache")
     p.add_argument("--trace-errors", action="store_true")
+    p.add_argument("--summary-json")
     p.set_defaults(func=cmd_run)
     p = sub.add_parser("validate-output")
     p.add_argument("--dataset", required=True)
