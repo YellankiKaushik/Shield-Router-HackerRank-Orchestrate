@@ -6,6 +6,12 @@ from collections import Counter
 from .normalize import tokenize
 from .schemas import EvidenceCandidate
 
+SCORE_PRECISION = 4
+TEXT_ONLY_SIMILARITY_THRESHOLD = 0.35
+# Low-similarity evidence also needs relationship and engagement. The 0.13
+# margin keeps generic one-phrase overlaps from becoming evidence.
+RELATIONAL_USEFUL_SIMILARITY_THRESHOLD = 0.13
+
 
 def _tf(tokens: list[str]) -> Counter[str]:
     return Counter(tokens)
@@ -14,18 +20,22 @@ def _tf(tokens: list[str]) -> Counter[str]:
 def _idf_for_docs(docs: list[list[str]]) -> dict[str, float]:
     df: Counter[str] = Counter()
     for tokens in docs:
-        df.update(set(tokens))
-    return {t: math.log((1 + len(docs)) / (1 + n)) + 1 for t, n in df.items()}
+        df.update(sorted(set(tokens)))
+    return {t: math.log((1 + len(docs)) / (1 + n)) + 1 for t, n in sorted(df.items())}
 
 
 def _cosine(a: Counter[str], b: Counter[str], idf: dict[str, float]) -> float:
     if not a or not b:
         return 0.0
-    common = set(a) & set(b)
-    num = sum(a[t] * b[t] * idf.get(t, 1.0) ** 2 for t in common)
-    da = math.sqrt(sum((v * idf.get(t, 1.0)) ** 2 for t, v in a.items()))
-    db = math.sqrt(sum((v * idf.get(t, 1.0)) ** 2 for t, v in b.items()))
+    common = sorted(set(a) & set(b))
+    num = math.fsum(a[t] * b[t] * idf.get(t, 1.0) ** 2 for t in common)
+    da = math.sqrt(math.fsum((v * idf.get(t, 1.0)) ** 2 for t, v in sorted(a.items())))
+    db = math.sqrt(math.fsum((v * idf.get(t, 1.0)) ** 2 for t, v in sorted(b.items())))
     return 0.0 if da == 0 or db == 0 else num / (da * db)
+
+
+def _quantize_score(value: float) -> float:
+    return round(value, SCORE_PRECISION)
 
 
 def highest_user_history_similarity(row: dict[str, str], idx) -> float:
@@ -37,7 +47,7 @@ def highest_user_history_similarity(row: dict[str, str], idx) -> float:
     idf = _idf_for_docs(docs)
     query = _tf(query_tokens)
     highest = max((_cosine(query, _tf(tokens), idf) for tokens in docs), default=0.0)
-    return round(max(0.0, min(1.0, highest)), 4)
+    return _quantize_score(max(0.0, min(1.0, highest)))
 
 
 def retrieve_evidence(row: dict[str, str], idx, limit: int = 5, threshold: float = 0.08) -> list[EvidenceCandidate]:
@@ -51,6 +61,7 @@ def retrieve_evidence(row: dict[str, str], idx, limit: int = 5, threshold: float
     scored: list[EvidenceCandidate] = []
     for hist, tokens in zip(history, docs):
         text_similarity = _cosine(query, _tf(tokens), idf)
+        comparable_similarity = _quantize_score(text_similarity)
         score = text_similarity
         same_sender = bool(row.get("sender_user_id") and hist.get("sender_user_id") == row.get("sender_user_id"))
         same_group = bool(row.get("group_id") and hist.get("group_id") == row.get("group_id"))
@@ -71,12 +82,13 @@ def retrieve_evidence(row: dict[str, str], idx, limit: int = 5, threshold: float
             score += 0.03
         relational = same_sender or same_group or same_business or same_media
         qualifies = (
-            text_similarity >= 0.35
-            or (text_similarity >= 0.12 and relational and useful_reaction)
+            comparable_similarity >= TEXT_ONLY_SIMILARITY_THRESHOLD
+            or (comparable_similarity >= RELATIONAL_USEFUL_SIMILARITY_THRESHOLD and relational and useful_reaction)
             or (same_media and useful_reaction)
             or (not query_tokens and relational and useful_reaction and (same_sender or same_business))
         )
-        if qualifies and score >= threshold:
-            scored.append(EvidenceCandidate(hist["message_id"], round(score, 4), hist["user_id"]))
+        comparable_score = _quantize_score(score)
+        if qualifies and comparable_score >= threshold:
+            scored.append(EvidenceCandidate(hist["message_id"], comparable_score, hist["user_id"]))
     scored.sort(key=lambda c: (-c.score, c.message_id))
     return scored[:limit]

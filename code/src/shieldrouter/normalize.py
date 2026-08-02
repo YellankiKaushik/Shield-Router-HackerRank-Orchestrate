@@ -12,6 +12,7 @@ TOKEN_RE = re.compile(r"[\w@#]+", re.UNICODE)
 def normalize_text(value: str | None) -> str:
     value = "" if value is None else str(value)
     value = unicodedata.normalize("NFKC", value)
+    value = re.sub(r"\bcheck\s+out\b", "checkout", value, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", value).strip()
 
 
